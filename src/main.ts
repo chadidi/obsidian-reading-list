@@ -1,31 +1,33 @@
-import { Notice, Plugin, TFolder, addIcon, debounce, moment, setIcon } from 'obsidian';
+import { Notice, Plugin, addIcon, debounce, setIcon } from 'obsidian';
 import { errorMessage } from './errors';
 import { Logger } from './logger';
-import { isVaultRootTarget, normalizeSettings } from './settings';
+import { normalizeSettings } from './settings';
 import { ReadingListSettingTab } from './settings-tab';
 import { SyncEngine } from './sync';
-import type {
-  PluginData,
-  ReadingListSettings,
-  SafariPick,
-  SyncHost,
-  SyncResult,
-  SyncTrigger,
+import { READING_LIST_VIEW_TYPE, ReadingListDashboardView } from './ui/dashboard-view';
+import {
+  isBrowserType,
+  type PluginData,
+  type ReadingListSettings,
+  type SafariPick,
+  type StoredEntry,
+  type SyncHost,
+  type SyncResult,
+  type SyncTrigger,
 } from './types';
-
-// Obsidian re-exports moment.js, but its typings are not directly callable under esModuleInterop.
-const formatWithMoment = (date: Date, format: string): string =>
-  (moment as unknown as (d: Date) => { format(f: string): string })(date).format(format);
 
 export default class ReadingListPlugin extends Plugin implements SyncHost {
   settings!: ReadingListSettings;
-  index: Record<string, string> = {};
+  /** Reading-list items from the last successful sync, rendered by the dashboard. */
+  entries: StoredEntry[] = [];
+  /** Epoch milliseconds of the last successful sync, or 0 when the plugin has never synced. */
+  lastSyncAt = 0;
   readonly log = new Logger(() => this.settings?.debug ?? false);
 
   private engine!: SyncEngine;
   private intervalId: number | null = null;
   private lastAutomaticError = '';
-  private readonly saveIndexSoon = debounce(() => void this.persist(), 1000, true);
+  private readonly saveSoon = debounce(() => void this.persist(), 1000, true);
   /**
    * Safari Bookmarks.plist the user picked through the native dialog. macOS only grants access for
    * the current session, so this lives in memory and is intentionally never persisted.
@@ -35,7 +37,7 @@ export default class ReadingListPlugin extends Plugin implements SyncHost {
   async onload(): Promise<void> {
     await this.loadPluginData();
 
-    this.engine = new SyncEngine(this.app, this, formatWithMoment);
+    this.engine = new SyncEngine(this);
 
     // Register the exact current Lucide book-open-text SVG so it looks identical to
     // lucide.dev/icons/book-open-text. Obsidian bundles an older Lucide version; addIcon() lets us
@@ -53,16 +55,20 @@ export default class ReadingListPlugin extends Plugin implements SyncHost {
       </g>`,
     );
 
-    // Manual sync: ribbon button + command palette.
-    this.addRibbonIcon(
-      'book-open-text',
-      'Sync reading list now',
-      () => void this.syncNow('manual'),
-    );
+    this.registerView(READING_LIST_VIEW_TYPE, (leaf) => new ReadingListDashboardView(leaf, this));
+
+    // The dashboard is the plugin's main surface, so the ribbon icon opens it.
+    this.addRibbonIcon('book-open-text', 'Open reading list', () => void this.openDashboard());
+    this.addCommand({
+      id: 'open-dashboard',
+      name: 'Open dashboard',
+      icon: 'book-open-text',
+      callback: () => void this.openDashboard(),
+    });
     this.addCommand({
       id: 'sync-now',
       name: 'Sync now',
-      icon: 'book-open-text',
+      icon: 'refresh-cw',
       callback: () => void this.syncNow('manual'),
     });
 
@@ -77,13 +83,6 @@ export default class ReadingListPlugin extends Plugin implements SyncHost {
       setIcon(iconEl, 'book-open-text');
     }
 
-    // Keep the reading-list item -> note index valid when the user renames or moves notes.
-    this.registerEvent(
-      this.app.vault.on('rename', (file, oldPath) => {
-        this.engine.handleRename(oldPath, file.path, file instanceof TFolder);
-      }),
-    );
-
     this.schedulePeriodicSync();
     if (this.settings.syncOnStartup) {
       this.app.workspace.onLayoutReady(() => void this.syncNow('startup'));
@@ -92,9 +91,31 @@ export default class ReadingListPlugin extends Plugin implements SyncHost {
   }
 
   onunload(): void {
-    // The interval and vault events are registered via register*(), so Obsidian removes them for us.
+    // The interval is registered via registerInterval() and views are unloaded by Obsidian.
     void this.persist();
     this.log.debug('Plugin unloaded');
+  }
+
+  /* ------------------------------------------------------------------ */
+  /* Dashboard                                                           */
+  /* ------------------------------------------------------------------ */
+
+  /**
+   * Opens the dashboard in the left sidebar as a tab, next to the core Bookmarks panel,
+   * focusing the existing panel when one is already open.
+   */
+  async openDashboard(): Promise<void> {
+    await this.app.workspace.ensureSideLeaf(READING_LIST_VIEW_TYPE, 'left', {
+      active: true,
+      reveal: true,
+    });
+  }
+
+  /** Re-renders every open dashboard, e.g. right after a sync imported new items. */
+  refreshDashboards(): void {
+    for (const leaf of this.app.workspace.getLeavesOfType(READING_LIST_VIEW_TYPE)) {
+      if (leaf.view instanceof ReadingListDashboardView) leaf.view.refresh();
+    }
   }
 
   /* ------------------------------------------------------------------ */
@@ -125,18 +146,6 @@ export default class ReadingListPlugin extends Plugin implements SyncHost {
 
   async syncNow(trigger: SyncTrigger): Promise<void> {
     const manual = trigger === 'manual';
-
-    if (isVaultRootTarget(this.settings.targetFolder) && !this.settings.allowVaultRootTarget) {
-      this.log.warn(`Sync (${trigger}) blocked: the target folder is the vault root`);
-      if (manual) {
-        new Notice(
-          'Sync blocked: the target folder is your vault root. Set a folder, or enable ' +
-            '"Allow syncing into the vault root" in settings.',
-          10000,
-        );
-      }
-      return;
-    }
 
     if (!manual && !this.settings.initialSyncDone) {
       this.log.info(`Automatic (${trigger}) sync skipped: run one manual sync first`);
@@ -170,14 +179,10 @@ export default class ReadingListPlugin extends Plugin implements SyncHost {
   }
 
   private summarize(r: SyncResult): string {
-    const parts = [`${r.created} created`];
-    if (r.updated) parts.push(`${r.updated} updated`);
-    if (r.moved) parts.push(`${r.moved} moved`);
+    const parts = [`${r.total} item${r.total === 1 ? '' : 's'}`];
+    if (r.added) parts.push(`${r.added} new`);
     if (r.removed) parts.push(`${r.removed} removed`);
-    if (r.skipped) parts.push(`${r.skipped} existing skipped`);
-    if (r.unchanged) parts.push(`${r.unchanged} unchanged`);
     if (r.duplicates) parts.push(`${r.duplicates} duplicate URLs ignored`);
-    if (r.failed) parts.push(`${r.failed} failed (see console)`);
     return `Reading list sync complete: ${parts.join(', ')} (${(r.durationMs / 1000).toFixed(1)}s).`;
   }
 
@@ -188,12 +193,37 @@ export default class ReadingListPlugin extends Plugin implements SyncHost {
   private async loadPluginData(): Promise<void> {
     const raw = (await this.loadData()) as Partial<PluginData> | null;
     this.settings = normalizeSettings(raw?.settings);
-    this.index = raw?.index && typeof raw.index === 'object' ? { ...raw.index } : {};
+    this.entries = this.normalizeEntries(raw?.entries);
+    this.lastSyncAt = typeof raw?.lastSyncAt === 'number' ? raw.lastSyncAt : 0;
+  }
+
+  /** Drops malformed items so a hand-edited data.json can never break the dashboard. */
+  private normalizeEntries(raw: unknown): StoredEntry[] {
+    if (!Array.isArray(raw)) return [];
+    const seen = new Set<string>();
+    const entries: StoredEntry[] = [];
+    for (const item of raw as Partial<StoredEntry>[]) {
+      if (!item || typeof item.url !== 'string' || !item.url || seen.has(item.url)) continue;
+      seen.add(item.url);
+      entries.push({
+        url: item.url,
+        title: typeof item.title === 'string' ? item.title : '',
+        dateAdded: typeof item.dateAdded === 'number' ? item.dateAdded : null,
+        excerpt: typeof item.excerpt === 'string' ? item.excerpt : '',
+        read: typeof item.read === 'boolean' ? item.read : null,
+        browser: isBrowserType(item.browser) ? item.browser : this.settings.browser,
+      });
+    }
+    return entries;
   }
 
   private async persist(): Promise<void> {
     try {
-      const data: PluginData = { settings: this.settings, index: this.index };
+      const data: PluginData = {
+        settings: this.settings,
+        entries: this.entries,
+        lastSyncAt: this.lastSyncAt,
+      };
       await this.saveData(data);
     } catch (err) {
       this.log.error('Could not save plugin data', err);
@@ -204,8 +234,15 @@ export default class ReadingListPlugin extends Plugin implements SyncHost {
     await this.persist();
   }
 
-  requestIndexSave(): void {
-    this.saveIndexSoon();
+  /* ------------------------------------------------------------------ */
+  /* SyncHost                                                            */
+  /* ------------------------------------------------------------------ */
+
+  setEntries(entries: StoredEntry[]): void {
+    this.entries = entries;
+    this.lastSyncAt = Date.now();
+    this.saveSoon();
+    this.refreshDashboards();
   }
 
   /** The in-memory Safari pick for this session, if the user has chosen a Bookmarks.plist. */

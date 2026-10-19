@@ -1,48 +1,22 @@
-import { normalizePath, TFile, TFolder, type App } from 'obsidian';
-import { errorMessage } from './errors';
-import { DEFAULT_TEMPLATE, resolveTemplate } from './template-store';
 import { readReadingList } from './sources';
-import { findUnknownPlaceholders, renderTemplate, type DateFormatter } from './template';
-import type { ReadingListEntry, SyncHost, SyncResult, SyncTrigger } from './types';
-import {
-  hasOwn,
-  joinVaultPath,
-  sanitizeFileName,
-  shortHash,
-  yieldToUi,
-  getObsidianDateFormat,
-} from './utils';
+import type { ReadingListEntry, StoredEntry, SyncHost, SyncResult, SyncTrigger } from './types';
 
-/** Hand control back to the UI thread every N items so a large import never freezes Obsidian. */
-const YIELD_EVERY = 25;
-
-function fallbackTitle(url: string): string {
-  try {
-    const u = new URL(url);
-    return `${u.hostname}${u.pathname === '/' ? '' : u.pathname}`;
-  } catch {
-    return url;
-  }
-}
-
-function withTrailingNewline(text: string): string {
-  return text.endsWith('\n') ? text : `${text}\n`;
-}
-
-interface Target {
-  path: string;
-  /** Existing note for this item, or null if a new one must be created at `path`. */
-  file: TFile | null;
+/** Normalises a freshly read item into the shape persisted for the dashboard. */
+function toStored(entry: ReadingListEntry): StoredEntry {
+  return {
+    url: entry.url.trim(),
+    title: entry.title,
+    dateAdded: entry.dateAdded ? entry.dateAdded.getTime() : null,
+    excerpt: entry.excerpt,
+    read: entry.read,
+    browser: entry.browser,
+  };
 }
 
 export class SyncEngine {
   private running = false;
 
-  constructor(
-    private readonly app: App,
-    private readonly host: SyncHost,
-    private readonly formatDate: DateFormatter,
-  ) {}
+  constructor(private readonly host: SyncHost) {}
 
   get isRunning(): boolean {
     return this.running;
@@ -60,8 +34,7 @@ export class SyncEngine {
       const { entries } = await readReadingList(this.host.settings, this.host.log, {
         safariOverride: this.host.getSafariPickedBuffer?.() ?? null,
       });
-      const template = resolveTemplate(this.host.settings);
-      const result = await this.apply(entries, entries, template);
+      const result = this.replace(entries);
       result.durationMs = Date.now() - started;
       this.host.log.info(`Sync (${trigger}) finished`, result);
       return result;
@@ -70,256 +43,44 @@ export class SyncEngine {
     }
   }
 
-  /** Keeps the index in step when the user renames/moves a reading-list note or its folder. */
-  handleRename(oldPath: string, newPath: string, isFolder: boolean): void {
-    const index = this.host.index;
-    let changed = false;
-    for (const key of Object.keys(index)) {
-      const p = index[key];
-      if (!p) continue;
-      if (p === oldPath) {
-        index[key] = newPath;
-        changed = true;
-      } else if (isFolder && p.startsWith(`${oldPath}/`)) {
-        index[key] = newPath + p.slice(oldPath.length);
-        changed = true;
-      }
-    }
-    if (changed) this.host.requestIndexSave();
-  }
-
-  /* -------------------------------------------------------------- */
-
-  private async apply(
-    entries: ReadingListEntry[],
-    allBrowserEntries: ReadingListEntry[] = entries,
-    template: string = DEFAULT_TEMPLATE,
-  ): Promise<SyncResult> {
-    const { settings, log } = this.host;
+  /**
+   * Turns the freshly read items into the new dashboard state: drops blank URLs, keeps the first
+   * occurrence of a duplicated URL, and reports how the list changed since the last sync. The new
+   * list is handed to the host, which persists it and refreshes any open dashboard.
+   */
+  replace(entries: ReadingListEntry[]): SyncResult {
     const result: SyncResult = {
-      total: entries.length,
-      created: 0,
-      updated: 0,
-      moved: 0,
+      total: 0,
+      added: 0,
       removed: 0,
       unchanged: 0,
-      skipped: 0,
       duplicates: 0,
-      failed: 0,
       durationMs: 0,
     };
 
-    const folder = normalizePath(settings.targetFolder.trim() || '/');
-    await this.ensureFolder(folder);
-
-    const unknown = findUnknownPlaceholders(template);
-    if (unknown.length)
-      log.warn(`Template has unknown placeholders (left as-is): ${unknown.join(', ')}`);
-
-    // path -> item key, so we never hand one note to two different items.
-    const owner = new Map<string, string>();
-    for (const [key, p] of Object.entries(this.host.index)) owner.set(p, key);
-
+    const previous = new Set(this.host.entries.map((entry) => entry.url));
     const seen = new Set<string>();
-    const syncedAt = new Date();
-    let handled = 0;
+    const next: StoredEntry[] = [];
 
     for (const entry of entries) {
-      if (++handled % YIELD_EVERY === 0) await yieldToUi();
-
-      const key = entry.url.trim();
-      if (!key) continue;
-      if (seen.has(key)) {
+      const stored = toStored(entry);
+      if (!stored.url) continue;
+      if (seen.has(stored.url)) {
         result.duplicates++;
         continue;
       }
-      seen.add(key);
-
-      try {
-        await this.syncEntry(entry, key, folder, template, syncedAt, owner, result);
-      } catch (err) {
-        // Error boundary: one bad item must not abort the whole sync.
-        result.failed++;
-        log.error(`Failed to sync "${entry.title}" <${key}>: ${errorMessage(err)}`, err);
-      }
+      seen.add(stored.url);
+      next.push(stored);
+      if (previous.has(stored.url)) result.unchanged++;
+      else result.added++;
     }
 
-    // Then remove notes whose reading-list item no longer exists in the browser.
-    const browserKeys = new Set<string>();
-    for (const e of allBrowserEntries) {
-      const k = e.url.trim();
-      if (k) browserKeys.add(k);
+    for (const url of previous) {
+      if (!seen.has(url)) result.removed++;
     }
-    result.removed = await this.removeDeletedItems(browserKeys, owner);
 
-    this.pruneIndex();
-    this.host.requestIndexSave();
+    result.total = next.length;
+    this.host.setEntries(next);
     return result;
-  }
-
-  private async syncEntry(
-    entry: ReadingListEntry,
-    key: string,
-    folder: string,
-    template: string,
-    syncedAt: Date,
-    owner: Map<string, string>,
-    result: SyncResult,
-  ): Promise<void> {
-    const { index } = this.host;
-    const vault = this.app.vault;
-
-    const target = await this.resolveTarget(entry, key, folder, owner);
-
-    if (target.file) {
-      index[key] = target.path;
-      owner.set(target.path, key);
-
-      // 1-way sync: always overwrite with the latest template render.
-      const content = this.render(entry, template, syncedAt);
-      let changed = false;
-      // vault.process is an atomic read-modify-write, so we never clobber a concurrent edit.
-      await vault.process(target.file, (current) => {
-        if (current === content) return current;
-        changed = true;
-        return content;
-      });
-      if (changed) result.updated++;
-      else result.unchanged++;
-      return;
-    }
-
-    await vault.create(target.path, this.render(entry, template, syncedAt));
-    index[key] = target.path;
-    owner.set(target.path, key);
-    result.created++;
-  }
-
-  private render(entry: ReadingListEntry, template: string, syncedAt: Date): string {
-    const dateFormat = getObsidianDateFormat(this.app);
-    return withTrailingNewline(
-      renderTemplate(
-        template,
-        {
-          title: entry.title || fallbackTitle(entry.url),
-          url: entry.url,
-          date: entry.dateAdded ?? syncedAt,
-          synced: syncedAt,
-          excerpt: entry.excerpt,
-          read: entry.read,
-          browser: entry.browser,
-        },
-        this.formatDate,
-        dateFormat,
-      ),
-    );
-  }
-
-  /**
-   * Decides which note represents a reading-list item:
-   *  1. the note recorded in the index (survives renames, see handleRename);
-   *  2. otherwise a note at the deterministic "<title>.md" path that already contains the URL (adopted);
-   *  3. otherwise a free path - "<title>.md", then "<title> (hash).md" if the name is taken.
-   */
-  private async resolveTarget(
-    entry: ReadingListEntry,
-    key: string,
-    folder: string,
-    owner: Map<string, string>,
-  ): Promise<Target> {
-    const vault = this.app.vault;
-    const { index } = this.host;
-
-    if (hasOwn(index, key)) {
-      const tracked = index[key];
-      if (tracked) {
-        const file = vault.getAbstractFileByPath(tracked);
-        if (file instanceof TFile) return { path: tracked, file };
-        delete index[key]; // note was deleted: treat the item as new again
-        if (owner.get(tracked) === key) owner.delete(tracked);
-      } else {
-        delete index[key];
-      }
-    }
-
-    const base = sanitizeFileName(entry.title || fallbackTitle(entry.url));
-    const names = [base, `${base} (${shortHash(key, 6)})`, `${base} (${shortHash(key, 12)})`];
-
-    for (const name of names) {
-      const candidate = normalizePath(joinVaultPath(folder, `${name}.md`));
-      const claimedBy = owner.get(candidate);
-      if (claimedBy !== undefined && claimedBy !== key) continue;
-
-      const existing = vault.getAbstractFileByPath(candidate);
-      if (existing instanceof TFile) {
-        const content = await vault.cachedRead(existing);
-        if (content.includes(key)) return { path: candidate, file: existing }; // adopt
-        continue; // unrelated note with the same name
-      }
-      if (existing) continue; // a folder with that name
-
-      // Not in Obsidian's file tree, but may exist on disk (case-insensitive file systems, hidden files).
-      if (await vault.adapter.exists(candidate)) continue;
-      return { path: candidate, file: null };
-    }
-    throw new Error(`no free file name found for "${entry.title}"`);
-  }
-
-  private async ensureFolder(folder: string): Promise<void> {
-    if (folder === '' || folder === '/') return;
-    const vault = this.app.vault;
-    const existing = vault.getAbstractFileByPath(folder);
-    if (existing instanceof TFolder) return;
-    if (existing) throw new Error(`"${folder}" exists but is a file, not a folder`);
-    try {
-      await vault.createFolder(folder);
-    } catch (err) {
-      // Lost a race with another creator? Fine if the folder is there now.
-      if (!(vault.getAbstractFileByPath(folder) instanceof TFolder)) throw err;
-    }
-  }
-
-  /**
-   * Deletes notes whose reading-list item no longer exists in the browser source, honoring the
-   * user's file deletion preference (system trash, Obsidian trash, or permanent).
-   * Only URLs already tracked in the index are considered, so notes the plugin did not
-   * create are never touched.
-   */
-  private async removeDeletedItems(
-    browserKeys: Set<string>,
-    owner: Map<string, string>,
-  ): Promise<number> {
-    const { index, log } = this.host;
-    const vault = this.app.vault;
-    let removed = 0;
-
-    for (const key of Object.keys(index)) {
-      if (browserKeys.has(key)) continue;
-
-      const path = index[key];
-      delete index[key];
-      if (path && owner.get(path) === key) owner.delete(path);
-      if (!path) continue;
-
-      const file = vault.getAbstractFileByPath(path);
-      if (!(file instanceof TFile)) continue;
-
-      try {
-        await this.app.fileManager.trashFile(file);
-        removed++;
-      } catch (err) {
-        log.error(`Failed to delete note for removed item "${key}": ${errorMessage(err)}`, err);
-      }
-    }
-
-    return removed;
-  }
-
-  private pruneIndex(): void {
-    const index = this.host.index;
-    for (const key of Object.keys(index)) {
-      const p = index[key];
-      if (!p || !(this.app.vault.getAbstractFileByPath(p) instanceof TFile)) delete index[key];
-    }
   }
 }

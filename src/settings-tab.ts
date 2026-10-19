@@ -1,25 +1,14 @@
 import {
   App,
-  type DropdownComponent,
   PluginSettingTab,
   type SettingDefinitionItem,
   type SettingGroupItem,
-  type TextAreaComponent,
   debounce,
 } from 'obsidian';
 import type ReadingListPlugin from './main';
 import { checkSourceAccess, defaultBrowserPath } from './paths';
-import { isVaultRootTarget } from './settings';
-import { findUnknownPlaceholders } from './template';
-import { CUSTOM_TEMPLATE_ID, TEMPLATE_NAMES, TEMPLATES } from './template-store';
 import { BROWSER_LABELS, type BrowserType } from './types';
 import { SafariPickerModal } from './ui/safari-picker-modal';
-
-/** Display label for a template: separators become spaces and the first letter is uppercase. */
-function templateLabel(name: string): string {
-  const spaced = name.replace(/[-_]+/g, ' ').trim();
-  return spaced.charAt(0).toUpperCase() + spaced.slice(1);
-}
 
 const PATH_HELP: Record<BrowserType, string> = {
   chrome:
@@ -65,17 +54,6 @@ export class ReadingListSettingTab extends PluginSettingTab {
   getSettingDefinitions(): SettingDefinitionItem[] {
     const settings = this.plugin.settings;
     const browser = settings.browser;
-
-    // A template name can disappear when a bundled template is renamed or removed; fall back so
-    // the dropdown never shows a value it does not list.
-    if (
-      settings.templateName !== CUSTOM_TEMPLATE_ID &&
-      !TEMPLATE_NAMES.includes(settings.templateName)
-    ) {
-      settings.templateName = TEMPLATE_NAMES[0] ?? CUSTOM_TEMPLATE_ID;
-      void this.plugin.saveSettings();
-    }
-
     const sourceItems = this.sourceItems(browser);
 
     // Everything below depends on actually being able to read the browser's reading list,
@@ -91,10 +69,8 @@ export class ReadingListSettingTab extends PluginSettingTab {
 
     return [
       { type: 'group', heading: 'Source', items: sourceItems },
-      { type: 'group', heading: 'Destination', items: this.destinationItems() },
-      this.targetGuardGroup(),
+      { type: 'group', heading: 'Dashboard', items: this.dashboardItems() },
       { type: 'group', heading: 'Automation', items: this.automationItems() },
-      { type: 'group', heading: 'Template', items: this.templateItems() },
     ];
   }
 
@@ -269,73 +245,30 @@ export class ReadingListSettingTab extends PluginSettingTab {
   }
 
   /* ------------------------------------------------------------------ */
-  /* Destination                                                         */
+  /* Dashboard                                                           */
   /* ------------------------------------------------------------------ */
 
-  private destinationItems(): SettingGroupItem[] {
-    const settings = this.plugin.settings;
+  private dashboardItems(): SettingGroupItem[] {
+    const items = this.plugin.entries.length;
     return [
       {
-        name: 'Target folder',
-        desc: 'Vault folder for the reading-list notes. It is created if it does not exist.',
+        name: 'Reading list dashboard',
+        desc:
+          items > 0
+            ? `Your reading list lives in the dashboard panel instead of one note per item, and these ` +
+              `settings keep this list in sync. Currently holding ${items} item${items === 1 ? '' : 's'}.`
+            : 'Your reading list lives in the dashboard panel instead of one note per item. ' +
+              'Open it from the ribbon icon, the command palette, or the button below.',
         render: (setting) => {
-          setting.addText((text) =>
-            text
-              .setPlaceholder('Reading list')
-              .setValue(settings.targetFolder)
-              .onChange((value) => {
-                const wasRoot = isVaultRootTarget(settings.targetFolder);
-                settings.targetFolder = value.trim();
-                const isRoot = isVaultRootTarget(settings.targetFolder);
-                // The acknowledgement only ever applies to a root configuration, so drop it as
-                // soon as the user picks a real folder and require a fresh confirmation if they
-                // clear it again.
-                if (!isRoot && settings.allowVaultRootTarget) {
-                  settings.allowVaultRootTarget = false;
-                  void this.plugin.saveSettings();
-                }
-                this.saveSoon();
-                // Adding or removing the confirmation block changes the set of definitions.
-                if (wasRoot !== isRoot) this.update();
-              }),
+          setting.addButton((btn) =>
+            btn
+              .setButtonText('Open dashboard')
+              .setCta()
+              .onClick(() => void this.plugin.openDashboard()),
           );
         },
       },
     ];
-  }
-
-  /** The root-target warning plus its confirmation toggle, shown only for a root target. */
-  private targetGuardGroup(): SettingDefinitionItem {
-    const settings = this.plugin.settings;
-    return {
-      type: 'group',
-      cls: 'bb-callout',
-      visible: isVaultRootTarget(settings.targetFolder),
-      items: [
-        {
-          name: '',
-          desc:
-            'Warning: an empty target folder puts reading-list notes in your vault root. ' +
-            'Existing notes there can be overwritten or deleted. Set a folder, or confirm below.',
-          searchable: false,
-          render: (setting) => {
-            setting.descEl.addClass('bb-warning');
-          },
-        },
-        {
-          name: 'Allow syncing into the vault root',
-          desc: 'Required while the target folder is empty. Sync stays blocked until you enable this.',
-          render: (setting) => {
-            setting.addToggle((toggle) =>
-              toggle.setValue(settings.allowVaultRootTarget).onChange(async (value) => {
-                settings.allowVaultRootTarget = value;
-                await this.plugin.saveSettings();
-              }),
-            );
-          },
-        },
-      ],
-    };
   }
 
   /* ------------------------------------------------------------------ */
@@ -419,111 +352,6 @@ export class ReadingListSettingTab extends PluginSettingTab {
                 }
               }),
           );
-        },
-      },
-    ];
-  }
-
-  /* ------------------------------------------------------------------ */
-  /* Template                                                            */
-  /* ------------------------------------------------------------------ */
-
-  private templateItems(): SettingGroupItem[] {
-    const settings = this.plugin.settings;
-    let templateArea: TextAreaComponent | null = null;
-    let templateDropdown: DropdownComponent | null = null;
-
-    /** Body of the selected template: the bundled template, or the custom template. */
-    const activeTemplateBody = (): string =>
-      settings.templateName === CUSTOM_TEMPLATE_ID
-        ? settings.customTemplate
-        : (TEMPLATES[settings.templateName] ?? '');
-
-    /** Shows the body of the selected template in the editor. */
-    const refreshTemplateArea = (): void => {
-      if (templateArea) templateArea.setValue(activeTemplateBody());
-    };
-
-    /**
-     * Forks the current selection into the custom template, leaving the bundled template
-     * untouched. Used as soon as the user edits the body of a built-in template.
-     */
-    const switchToCustomTemplate = (): void => {
-      settings.templateName = CUSTOM_TEMPLATE_ID;
-      templateDropdown?.setValue(CUSTOM_TEMPLATE_ID);
-    };
-
-    const refreshWarning = (): void => {
-      const unknown = findUnknownPlaceholders(activeTemplateBody());
-      if (!warningEl) return;
-      warningEl.setText(
-        unknown.length ? `Unknown placeholders (will be left as-is): ${unknown.join(', ')}` : '',
-      );
-    };
-
-    let warningEl: HTMLElement | null = null;
-
-    return [
-      {
-        name: 'Template',
-        desc: 'Choose a template for your reading-list notes.',
-        render: (setting) => {
-          setting.addDropdown((dd) => {
-            templateDropdown = dd;
-            for (const name of TEMPLATE_NAMES) {
-              dd.addOption(name, templateLabel(name));
-            }
-            dd.addOption(CUSTOM_TEMPLATE_ID, 'Custom')
-              .setValue(settings.templateName)
-              .onChange(async (value) => {
-                settings.templateName = value;
-                refreshTemplateArea();
-                refreshWarning();
-                await this.plugin.saveSettings();
-              });
-          });
-        },
-      },
-      {
-        name: 'Template content',
-        desc: createFragment((frag) => {
-          frag.appendText('Editing a built-in template switches to Custom.');
-          frag.createEl('br');
-          frag.appendText('Placeholders: ');
-          [
-            '{{title}}',
-            '{{url}}',
-            '{{date}}',
-            '{{excerpt}}',
-            '{{read}}',
-            '{{domain}}',
-            '{{browser}}',
-            '{{synced}}',
-          ].forEach((placeholder, index) => {
-            if (index) frag.appendText(', ');
-            frag.createEl('code', { text: placeholder, cls: 'bb-placeholder' });
-          });
-          frag.createEl('br');
-          frag.appendText('Dates accept a moment.js format, e.g. ');
-          frag.createEl('code', { text: '{{date:YYYY-MM-DD}}', cls: 'bb-placeholder' });
-          frag.appendText(', and ');
-          frag.createEl('code', { text: '{{title|yaml}}', cls: 'bb-placeholder' });
-          frag.appendText(' quotes a value for front matter.');
-        }),
-        render: (setting) => {
-          setting.addTextArea((area) => {
-            templateArea = area;
-            area.setValue(activeTemplateBody()).onChange((value) => {
-              // Editing a file template forks it into the custom template instead of writing the file.
-              if (settings.templateName !== CUSTOM_TEMPLATE_ID) switchToCustomTemplate();
-              settings.customTemplate = value;
-              refreshWarning();
-              this.saveSoon();
-            });
-            area.inputEl.rows = 16;
-            area.inputEl.spellcheck = false;
-          });
-          setting.settingEl.addClass('bb-template-setting');
         },
       },
     ];
