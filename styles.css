@@ -76,40 +76,168 @@
 .rl-dashboard {
   display: flex;
   flex-direction: column;
-  gap: var(--size-4-2);
   height: 100%;
-  padding: var(--size-4-2) var(--size-4-3) 0;
 }
 
 .rl-toolbar {
   display: flex;
-  flex-wrap: wrap;
+  flex-direction: column;
+  padding: var(--size-4-1) var(--size-4-3);
+  gap: var(--size-4-2);
+  border-bottom: 1px solid var(--background-modifier-border);
+}
+
+.rl-actions {
+  display: flex;
+  justify-content: center;
   align-items: center;
-  gap: var(--size-2-2);
+  gap: var(--size-2-1, 4px);
 }
 
-.rl-search {
-  flex: 1 1 100%;
-  min-width: 0;
-}
-
-.rl-select {
-  flex: 0 0 auto;
-}
-
-.rl-sync {
-  display: inline-flex;
+.rl-action-button {
+  appearance: none;
+  -webkit-appearance: none;
+  display: flex;
   align-items: center;
-  gap: var(--size-2-2);
-  margin-left: auto;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  min-width: 26px;
+  min-height: 26px;
+  padding: 0 !important;
+  margin: 0;
+  border: none !important;
+  outline: none;
+  box-shadow: none !important;
+  background: transparent !important;
+  background-color: transparent !important;
+  color: var(--text-muted);
+  cursor: pointer;
+  border-radius: var(--radius-s);
+  transition: background-color 0.15s ease, color 0.15s ease;
+}
+
+.rl-action-button:hover {
+  color: var(--text-normal);
+  background-color: rgba(0, 0, 0, 0.04) !important;
+  background-color: color-mix(in srgb, var(--background-modifier-hover) 60%, transparent) !important;
+}
+
+.theme-dark .rl-action-button:hover {
+  background-color: rgba(255, 255, 255, 0.06) !important;
+  background-color: color-mix(in srgb, var(--background-modifier-hover) 60%, transparent) !important;
+}
+
+.rl-action-button.is-active {
+  color: var(--text-accent);
+  background-color: rgba(0, 0, 0, 0.05) !important;
+  background-color: color-mix(in srgb, var(--background-modifier-hover) 75%, transparent) !important;
+}
+
+.theme-dark .rl-action-button.is-active {
+  background-color: rgba(255, 255, 255, 0.08) !important;
+  background-color: color-mix(in srgb, var(--background-modifier-hover) 75%, transparent) !important;
+}
+
+.rl-action-button svg,
+.rl-action-button .svg-icon {
+  width: 15px !important;
+  height: 15px !important;
+  display: block;
+}
+
+.rl-search-container {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  padding: 0 0 var(--size-2-1);
+  --input-height: 30px;
+  --search-clear-button-size: 14px;
+}
+
+.rl-search-container.is-hidden {
+  display: none;
+}
+
+.rl-search-container .search-input-container {
+  width: 100%;
+  height: var(--input-height);
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.rl-search-container .search-input-container:before {
+  top: 50%;
+  transform: translateY(-50%);
+  inset-inline-start: 10px;
+  position: absolute;
+  content: '';
+  height: 15px;
+  width: 15px;
+  display: block;
+  background-color: var(--text-muted);
+  -webkit-mask-image: url("data:image/svg+xml,<svg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 24 24%27 fill=%27none%27 stroke=%27currentColor%27 stroke-width=%272%27 stroke-linecap=%27round%27 stroke-linejoin=%27round%27><circle cx=%2711%27 cy=%2711%27 r=%278%27></circle><line x1=%2721%27 y1=%2721%27 x2=%2716.65%27 y2=%2716.65%27></line></svg>");
+  mask-image: url("data:image/svg+xml,<svg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 24 24%27 fill=%27none%27 stroke=%27currentColor%27 stroke-width=%272%27 stroke-linecap=%27round%27 stroke-linejoin=%27round%27><circle cx=%2711%27 cy=%2711%27 r=%278%27></circle><line x1=%2721%27 y1=%2721%27 x2=%2716.65%27 y2=%2716.65%27></line></svg>");
+  -webkit-mask-repeat: no-repeat;
+  mask-repeat: no-repeat;
+  -webkit-mask-size: contain;
+  mask-size: contain;
+  pointer-events: none;
+}
+
+.rl-search-container .search-input-container input[type="search"],
+.rl-search-container .search-input-container input {
+  width: 100%;
+  height: var(--input-height);
+  line-height: var(--input-height);
+  border-radius: 9999px !important;
+  background-color: var(--background-primary);
+  border: 1px solid var(--background-modifier-border);
+  font-size: var(--font-ui-smaller);
+  padding-inline-start: 32px !important;
+  padding-inline-end: 28px;
+  color: var(--text-normal);
+  outline: none;
+  box-shadow: none;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.rl-search-container .search-input-container input:focus {
+  border-color: var(--interactive-accent);
+  box-shadow: 0 0 0 1px var(--interactive-accent);
+}
+
+.rl-search-container .search-input-clear-button {
+  position: absolute;
+  top: 0 !important;
+  bottom: 0 !important;
+  height: 100% !important;
+  margin: 0 !important;
+  transform: none !important;
+  display: flex;
+  align-items: center !important;
+  justify-content: center !important;
+  inset-inline-end: 8px !important;
+  padding: 0 !important;
+}
+
+.rl-search-container .search-input-container input:placeholder-shown ~ .search-input-clear-button {
+  display: none !important;
+}
+
+.rl-search-container .search-input-container input:not(:placeholder-shown) ~ .search-input-clear-button {
+  display: flex !important;
 }
 
 .rl-summary {
+  padding: var(--size-4-2) var(--size-4-4);
   display: flex;
   flex-direction: column;
   gap: 2px;
   color: var(--text-muted);
   font-size: var(--font-ui-smaller);
+  background-color: var(--background-secondary);
 }
 
 .rl-list {
@@ -117,8 +245,8 @@
   overflow-y: auto;
   display: flex;
   flex-direction: column;
-  gap: var(--size-2-2);
-  padding-bottom: var(--size-4-2);
+  gap: var(--size-4-1);
+  padding: var(--size-4-2) var(--size-4-4);
 }
 
 .rl-item {
@@ -198,17 +326,35 @@
 
 .rl-item-open {
   flex: 0 0 auto;
-  padding: 2px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  padding: 0;
   color: var(--text-muted);
-  background-color: transparent;
-  border: none;
-  box-shadow: none;
+  background-color: transparent !important;
+  border: none !important;
+  box-shadow: none !important;
   cursor: pointer;
+  border-radius: var(--radius-s);
+  transition: background-color 0.15s ease, color 0.15s ease;
 }
 
 .rl-item-open:hover {
   color: var(--text-normal);
-  background-color: transparent;
+  background-color: rgba(0, 0, 0, 0.04) !important;
+  background-color: color-mix(in srgb, var(--background-modifier-hover) 60%, transparent) !important;
+}
+
+.theme-dark .rl-item-open:hover {
+  background-color: rgba(255, 255, 255, 0.06) !important;
+  background-color: color-mix(in srgb, var(--background-modifier-hover) 60%, transparent) !important;
+}
+
+.rl-item-open svg {
+  width: 14px;
+  height: 14px;
 }
 
 .rl-empty {

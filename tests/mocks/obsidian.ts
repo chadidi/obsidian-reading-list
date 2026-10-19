@@ -127,3 +127,25 @@ export function moment(date?: any) {
     },
   };
 }
+
+export class SearchComponent {
+  inputEl: HTMLInputElement = {} as any;
+  containerEl: HTMLElement = {} as any;
+  clearButtonEl: HTMLElement = {} as any;
+  constructor(containerEl?: any) {
+    if (containerEl) this.containerEl = containerEl;
+  }
+  setPlaceholder(_p: string): this {
+    return this;
+  }
+  setValue(_v: string): this {
+    return this;
+  }
+  getValue(): string {
+    return '';
+  }
+  onChange(_cb: (val: string) => any): this {
+    return this;
+  }
+}
+

@@ -1,4 +1,4 @@
-import { ItemView, Notice, setIcon, type App, type WorkspaceLeaf } from 'obsidian';
+import { ItemView, Menu, Notice, SearchComponent, setIcon, type App, type WorkspaceLeaf } from 'obsidian';
 import type ReadingListPlugin from '../main';
 import { BROWSER_LABELS, type StoredEntry } from '../types';
 
@@ -91,6 +91,7 @@ export class ReadingListDashboardView extends ItemView {
   private query = '';
   private readFilter: ReadFilter = 'all';
   private sort: SortKey = 'added-desc';
+  private searchVisible = false;
   private countEl: HTMLElement | null = null;
   private lastSyncEl: HTMLElement | null = null;
   private listEl: HTMLElement | null = null;
@@ -132,41 +133,105 @@ export class ReadingListDashboardView extends ItemView {
 
     const toolbar = root.createDiv({ cls: 'rl-toolbar' });
 
-    const search = toolbar.createEl('input', {
-      cls: 'rl-search',
-      type: 'search',
-      placeholder: 'Search title or URL',
-    });
-    search.value = this.query;
-    search.addEventListener('input', () => {
-      this.query = search.value;
+    // Center actions row
+    const actions = toolbar.createDiv({ cls: 'rl-actions' });
+
+    // Search row (togglable, placed directly below the actions row)
+    const searchContainer = toolbar.createDiv({ cls: 'rl-search-container' });
+    if (!this.searchVisible) searchContainer.addClass('is-hidden');
+
+    const searchComponent = new SearchComponent(searchContainer);
+    searchComponent.setPlaceholder('Search...');
+    searchComponent.setValue(this.query);
+    searchComponent.onChange((value) => {
+      this.query = value;
       this.renderList();
     });
 
-    const filter = toolbar.createEl('select', { cls: 'dropdown rl-select' });
-    for (const [value, label] of READ_FILTERS) {
-      const option = filter.createEl('option', { value, text: label });
-      option.selected = value === this.readFilter;
-    }
-    filter.addEventListener('change', () => {
-      this.readFilter = filter.value as ReadFilter;
-      this.renderList();
+    const searchInput = searchComponent.inputEl;
+
+    const createActionButton = (
+      icon: string,
+      ariaLabel: string,
+      onClick: (event: MouseEvent) => void,
+    ): HTMLButtonElement => {
+      const btn = actions.createEl('button', {
+        cls: 'clickable-icon nav-action-button rl-action-button',
+        attr: { 'aria-label': ariaLabel, type: 'button' },
+      });
+      setIcon(btn, icon);
+      btn.addEventListener('click', onClick);
+      return btn;
+    };
+
+    const toggleSearch = (show?: boolean): void => {
+      this.searchVisible = show ?? !this.searchVisible;
+      searchToggleBtn.toggleClass('is-active', this.searchVisible);
+      searchContainer.toggleClass('is-hidden', !this.searchVisible);
+      if (this.searchVisible) {
+        searchInput.focus();
+        searchInput.select();
+      } else {
+        if (this.query) {
+          this.query = '';
+          searchComponent.setValue('');
+          this.renderList();
+        }
+      }
+    };
+
+    searchInput.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape') {
+        toggleSearch(false);
+      }
     });
 
-    const sort = toolbar.createEl('select', { cls: 'dropdown rl-select' });
-    for (const [value, label] of SORTS) {
-      const option = sort.createEl('option', { value, text: label });
-      option.selected = value === this.sort;
-    }
-    sort.addEventListener('change', () => {
-      this.sort = sort.value as SortKey;
-      this.renderList();
+    // Sync button
+    createActionButton('refresh-cw', 'Sync reading list', () => {
+      void this.plugin.syncNow('manual');
     });
 
-    const syncBtn = toolbar.createEl('button', { cls: 'rl-sync' });
-    setIcon(syncBtn.createSpan({ cls: 'rl-sync-icon' }), 'refresh-cw');
-    syncBtn.createSpan({ text: 'Sync' });
-    syncBtn.addEventListener('click', () => void this.plugin.syncNow('manual'));
+    // Filter button
+    const filterBtn = createActionButton('filter', 'Filter by read state', (event) => {
+      const menu = new Menu();
+      for (const [value, label] of READ_FILTERS) {
+        menu.addItem((item) => {
+          item
+            .setTitle(label)
+            .setChecked(value === this.readFilter)
+            .onClick(() => {
+              this.readFilter = value;
+              filterBtn.toggleClass('is-active', this.readFilter !== 'all');
+              this.refresh();
+            });
+        });
+      }
+      menu.showAtMouseEvent(event);
+    });
+    if (this.readFilter !== 'all') filterBtn.addClass('is-active');
+
+    // Sort button
+    createActionButton('arrow-up-narrow-wide', 'Sort by', (event) => {
+      const menu = new Menu();
+      for (const [value, label] of SORTS) {
+        menu.addItem((item) => {
+          item
+            .setTitle(label)
+            .setChecked(value === this.sort)
+            .onClick(() => {
+              this.sort = value;
+              this.refresh();
+            });
+        });
+      }
+      menu.showAtMouseEvent(event);
+    });
+
+    // Search toggle button
+    const searchToggleBtn = createActionButton('search', 'Search', () => {
+      toggleSearch();
+    });
+    if (this.searchVisible) searchToggleBtn.addClass('is-active');
 
     const summary = root.createDiv({ cls: 'rl-summary' });
     this.countEl = summary.createDiv({ cls: 'rl-count' });
