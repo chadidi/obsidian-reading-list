@@ -1,0 +1,10 @@
+{
+	"id": "reading-list",
+	"name": "Reading List",
+	"version": "1.0.0",
+	"minAppVersion": "1.13.0",
+	"description": "Import your browser reading list into Obsidian as individual Markdown notes, using your own template.",
+	"author": "Abdellah Chadidi",
+	"authorUrl": "https://github.com/chadidi",
+	"isDesktopOnly": true
+}
