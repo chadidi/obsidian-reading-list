@@ -48,7 +48,7 @@ Copy `main.js`, `manifest.json`, and `styles.css` into `<vault>/.obsidian/plugin
 1. Go to **Settings** → **Reading List**.
 2. Select your browser under **Source**. The plugin will automatically detect your browser's default reading list file on macOS, Windows, or Linux.
 3. Choose your target vault folder and template.
-4. Click **Sync reading list** (or click the ribbon icon, or run the command `Sync reading list now`).
+4. Click **Sync reading list now** (or click the ribbon icon, or run the command `Sync now`).
 5. Automatic syncs (on startup or periodic) are kept disabled until one manual sync has completed successfully to prevent accidental imports.
 
 ## Supported browsers

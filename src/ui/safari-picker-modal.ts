@@ -28,7 +28,7 @@ export class SafariPickerModal extends Modal {
     const { contentEl } = this;
     contentEl.empty();
     contentEl.addClass('bb-safari-picker');
-    contentEl.createEl('h2', { text: 'Grant access to the Safari reading list' });
+    contentEl.createEl('h2', { text: 'Grant access to the safari reading list' });
 
     contentEl.createEl('p', {
       text:

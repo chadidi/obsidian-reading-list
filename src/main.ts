@@ -61,7 +61,7 @@ export default class ReadingListPlugin extends Plugin implements SyncHost {
     );
     this.addCommand({
       id: 'sync-now',
-      name: 'Sync reading list now',
+      name: 'Sync now',
       icon: 'book-open-text',
       callback: () => void this.syncNow('manual'),
     });

@@ -168,7 +168,7 @@ export class ReadingListSettingTab extends PluginSettingTab {
           );
           frag.createEl('code', { text: '/' });
           frag.appendText(' to separate nested folders, e.g. ');
-          frag.createEl('code', { text: 'Reading List' });
+          frag.createEl('code', { text: 'Reading list' });
           frag.appendText(
             '. Matching is case-insensitive. Leave empty to import nothing from Firefox.',
           );
@@ -177,7 +177,7 @@ export class ReadingListSettingTab extends PluginSettingTab {
           setting
             .addText((text) => {
               text
-                .setPlaceholder('E.g. Reading List (leave empty to disable)')
+                .setPlaceholder('E.g. Reading list (leave empty to disable)')
                 .setValue(settings.firefoxFolder)
                 .onChange((value) => {
                   settings.firefoxFolder = value.trim();
@@ -188,7 +188,7 @@ export class ReadingListSettingTab extends PluginSettingTab {
             .addExtraButton((btn) =>
               btn
                 .setIcon('x')
-                .setTooltip('Clear: import nothing from Firefox')
+                .setTooltip('Clear: import nothing from firefox')
                 .onClick(async () => {
                   settings.firefoxFolder = '';
                   await this.plugin.saveSettings();
@@ -281,7 +281,7 @@ export class ReadingListSettingTab extends PluginSettingTab {
         render: (setting) => {
           setting.addText((text) =>
             text
-              .setPlaceholder('Reading List')
+              .setPlaceholder('Reading list')
               .setValue(settings.targetFolder)
               .onChange((value) => {
                 const wasRoot = isVaultRootTarget(settings.targetFolder);
