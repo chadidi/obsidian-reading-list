@@ -78,13 +78,18 @@ async function openPage(app: App, url: string): Promise<void> {
   });
 }
 
-/** Sets up a click listener to open the page in Obsidian. */
-function setupInternalLink(app: App, el: HTMLElement, url: string): void {
-  el.addEventListener('click', (event) => {
-    event.preventDefault();
-    event.stopPropagation();
-    void openPage(app, url);
-  });
+/** Formats an epoch millisecond timestamp into a human relative time. */
+function formatRelativeTime(ms: number): string {
+  if (!ms) return 'Never synced';
+  const diffSec = Math.floor((Date.now() - ms) / 1000);
+  if (diffSec < 45) return 'Just synced';
+  const diffMin = Math.floor(diffSec / 60);
+  if (diffMin < 60) return `Synced ${diffMin}m ago`;
+  const diffHours = Math.floor(diffMin / 60);
+  if (diffHours < 24) return `Synced ${diffHours}h ago`;
+  const diffDays = Math.floor(diffHours / 24);
+  if (diffDays < 7) return `Synced ${diffDays}d ago`;
+  return `Synced ${formatDay(ms)}`;
 }
 
 export class ReadingListDashboardView extends ItemView {
@@ -247,9 +252,9 @@ export class ReadingListDashboardView extends ItemView {
     listEl.empty();
 
     const all = this.plugin.entries;
-    this.renderSummary(all);
 
     if (all.length === 0) {
+      this.renderSummary(all);
       this.renderEmpty(
         listEl,
         'Your reading list is empty',
@@ -259,23 +264,39 @@ export class ReadingListDashboardView extends ItemView {
     }
 
     const visible = this.visibleEntries(all);
+    this.renderSummary(all, visible.length);
+
     if (visible.length === 0) {
-      this.renderEmpty(listEl, 'No items match your filters', 'Try a different search or filter.');
+      this.renderEmpty(listEl, 'No matching items', 'Try a different search query or filter.');
       return;
     }
 
     for (const entry of visible) listEl.appendChild(this.renderItem(entry));
   }
 
-  private renderSummary(all: StoredEntry[]): void {
+  private renderSummary(all: StoredEntry[], visibleCount?: number): void {
     if (!this.countEl) return;
     const unread = all.filter((entry) => entry.read !== true).length;
-    this.countEl.setText(`${all.length} item${all.length === 1 ? '' : 's'}, ${unread} unread`);
-    this.lastSyncEl?.setText(
-      this.plugin.lastSyncAt
-        ? `Last sync: ${new Date(this.plugin.lastSyncAt).toLocaleString()}`
-        : 'Never synced',
-    );
+
+    if (visibleCount !== undefined && visibleCount < all.length) {
+      this.countEl.setText(`Showing ${visibleCount} of ${all.length}`);
+    } else if (unread > 0) {
+      this.countEl.setText(`${all.length} item${all.length === 1 ? '' : 's'} · ${unread} unread`);
+    } else {
+      this.countEl.setText(`${all.length} item${all.length === 1 ? '' : 's'} · All read`);
+    }
+
+    if (this.lastSyncEl) {
+      this.lastSyncEl.setText(formatRelativeTime(this.plugin.lastSyncAt));
+      if (this.plugin.lastSyncAt) {
+        this.lastSyncEl.setAttribute(
+          'title',
+          `Last sync: ${new Date(this.plugin.lastSyncAt).toLocaleString()}`,
+        );
+      } else {
+        this.lastSyncEl.removeAttribute('title');
+      }
+    }
   }
 
   private visibleEntries(all: StoredEntry[]): StoredEntry[] {
@@ -305,46 +326,96 @@ export class ReadingListDashboardView extends ItemView {
   private renderItem(entry: StoredEntry): HTMLElement {
     const item = createDiv({ cls: 'rl-item' });
     if (entry.read === true) item.addClass('is-read');
+    item.setAttribute('title', `${entry.title || entry.url}\n${entry.url}`);
 
     item.addEventListener('click', (event) => {
-      // Don't trigger if the external button or the title link was clicked
-      const target = event.target as HTMLElement;
-      if (target.closest('.rl-item-open') || target.closest('.rl-item-title')) {
+      // Middle click or modifier key opens in default external browser
+      if (event.metaKey || event.ctrlKey || event.button === 1) {
+        openExternal(entry.url);
         return;
       }
       void openPage(this.app, entry.url);
     });
 
+    item.addEventListener('contextmenu', (event) => {
+      event.preventDefault();
+      const menu = new Menu();
+
+      menu.addItem((i) =>
+        i
+          .setTitle('Open in Obsidian')
+          .setIcon('book-open')
+          .onClick(() => void openPage(this.app, entry.url)),
+      );
+
+      menu.addItem((i) =>
+        i
+          .setTitle('Open in default browser')
+          .setIcon('external-link')
+          .onClick(() => openExternal(entry.url)),
+      );
+
+      menu.addSeparator();
+
+      menu.addItem((i) =>
+        i
+          .setTitle(entry.read ? 'Mark as unread' : 'Mark as read')
+          .setIcon(entry.read ? 'circle' : 'check-circle')
+          .onClick(async () => {
+            entry.read = !entry.read;
+            await this.plugin.saveSettings();
+            this.renderList();
+          }),
+      );
+
+      menu.addSeparator();
+
+      menu.addItem((i) =>
+        i
+          .setTitle('Copy URL')
+          .setIcon('copy')
+          .onClick(() => {
+            void navigator.clipboard.writeText(entry.url);
+            new Notice('URL copied to clipboard');
+          }),
+      );
+
+      menu.addItem((i) =>
+        i
+          .setTitle('Copy title')
+          .setIcon('copy')
+          .onClick(() => {
+            void navigator.clipboard.writeText(entry.title || entry.url);
+            new Notice('Title copied to clipboard');
+          }),
+      );
+
+      menu.showAtMouseEvent(event);
+    });
+
+    // Unread indicator dot
+    item.createSpan({ cls: 'rl-item-dot' });
+
     const main = item.createDiv({ cls: 'rl-item-main' });
-    const title = main.createDiv({
+    main.createDiv({
       cls: 'rl-item-title',
       text: entry.title || entry.url,
-      title: entry.url,
     });
-    setupInternalLink(this.app, title, entry.url);
 
     const meta = main.createDiv({ cls: 'rl-item-meta' });
     meta.createSpan({ cls: 'rl-item-domain', text: domainOf(entry.url) });
-    if (entry.dateAdded !== null) meta.createSpan({ text: formatDay(entry.dateAdded) });
-    if (entry.browser !== this.plugin.settings.browser) {
-      meta.createSpan({ text: BROWSER_LABELS[entry.browser] });
+    if (entry.dateAdded !== null) {
+      meta.createSpan({ cls: 'rl-item-separator', text: '•' });
+      meta.createSpan({ cls: 'rl-item-date', text: formatDay(entry.dateAdded) });
     }
-    if (entry.read !== null) {
-      const badge = meta.createSpan({ cls: 'rl-item-badge' });
-      setIcon(badge.createSpan({ cls: 'rl-item-badge-icon' }), entry.read ? 'check' : 'circle');
-      badge.createSpan({ text: entry.read ? 'Read' : 'Unread' });
+    if (entry.browser !== this.plugin.settings.browser) {
+      meta.createSpan({ cls: 'rl-item-separator', text: '•' });
+      meta.createSpan({ cls: 'rl-item-browser', text: BROWSER_LABELS[entry.browser] });
     }
 
     if (entry.excerpt.trim()) {
       main.createDiv({ cls: 'rl-item-excerpt', text: entry.excerpt.trim() });
     }
-
-    const openBtn = item.createEl('button', {
-      cls: 'rl-item-open',
-      attr: { 'aria-label': 'Open in default browser' },
-    });
-    setIcon(openBtn, 'external-link');
-    openBtn.addEventListener('click', () => openExternal(entry.url));
 
     return item;
   }
