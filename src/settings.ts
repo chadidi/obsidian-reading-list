@@ -1,20 +1,27 @@
-import { isBrowserType, type ReadingListSettings } from './types';
-import { BROWSER_NAMES } from 'browsers-detect';
+import { isBrowserType, type BrowserType, type ReadingListSettings } from './types';
+import { BROWSER_NAMES, isChromiumBrowser, isFirefoxBrowser } from 'browsers-detect';
 
 type StoredReadingListSettings = Partial<ReadingListSettings> & {
   /** Previous versions stored source file paths here. */
   paths?: Record<string, string>;
+  chromeFolder?: string;
+  edgeFolder?: string;
+  chromiumFolder?: string;
+  firefoxFolder?: string;
 };
+
+export function defaultBookmarksFolder(browser: BrowserType): string {
+  if (browser === 'edge') return 'Other Favorites/Reading List';
+  if (browser === 'safari') return 'Reading List';
+  return 'Other Bookmarks/Reading List';
+}
 
 export const DEFAULT_SETTINGS: ReadingListSettings = {
   browser: 'chrome',
   profiles: Object.fromEntries(
     Object.keys(BROWSER_NAMES).map((browser) => [browser, '']),
   ) as Record<ReadingListSettings['browser'], string>,
-  chromeFolder: 'Other Bookmarks/Reading List',
-  edgeFolder: 'Other Favorites/Reading List',
-  chromiumFolder: 'Other Bookmarks/Reading List',
-  firefoxFolder: 'Reading List',
+  bookmarksFolder: defaultBookmarksFolder('chrome'),
   intervalMinutes: 0,
   syncOnStartup: true,
   debug: false,
@@ -33,18 +40,30 @@ export function normalizeSettings(
   raw: StoredReadingListSettings | undefined | null,
 ): ReadingListSettings {
   const interval = raw?.intervalMinutes;
+  const browser = isBrowserType(raw?.browser) ? raw.browser : DEFAULT_SETTINGS.browser;
+  const legacyFolder =
+    browser === 'chrome'
+      ? raw?.chromeFolder
+      : browser === 'edge'
+        ? raw?.edgeFolder
+        : isFirefoxBrowser(browser)
+          ? raw?.firefoxFolder
+          : isChromiumBrowser(browser)
+            ? raw?.chromiumFolder
+            : undefined;
+  const storedFolder =
+    typeof raw?.bookmarksFolder === 'string'
+      ? raw.bookmarksFolder
+      : typeof legacyFolder === 'string'
+        ? legacyFolder
+        : undefined;
   return {
-    browser: isBrowserType(raw?.browser) ? raw.browser : DEFAULT_SETTINGS.browser,
+    browser,
     profiles: { ...DEFAULT_SETTINGS.profiles, ...(raw?.profiles ?? {}) },
-    chromeFolder:
-      typeof raw?.chromeFolder === 'string' ? raw.chromeFolder : DEFAULT_SETTINGS.chromeFolder,
-    edgeFolder: typeof raw?.edgeFolder === 'string' ? raw.edgeFolder : DEFAULT_SETTINGS.edgeFolder,
-    chromiumFolder:
-      typeof raw?.chromiumFolder === 'string'
-        ? raw.chromiumFolder
-        : DEFAULT_SETTINGS.chromiumFolder,
-    firefoxFolder:
-      typeof raw?.firefoxFolder === 'string' ? raw.firefoxFolder : DEFAULT_SETTINGS.firefoxFolder,
+    bookmarksFolder:
+      storedFolder === 'Reading List'
+        ? defaultBookmarksFolder(browser)
+        : (storedFolder ?? defaultBookmarksFolder(browser)),
     intervalMinutes:
       typeof interval === 'number' && Number.isFinite(interval) && interval >= 0
         ? Math.min(Math.floor(interval), MAX_INTERVAL_MINUTES)

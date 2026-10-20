@@ -29,20 +29,14 @@ export async function readReadingList(
   log.info(`Reading ${BROWSER_LABELS[browser]} reading list from ${sourcePath}`);
 
   if (isChromiumBrowser(browser)) {
-    const folder =
-      browser === 'chrome'
-        ? settings.chromeFolder
-        : browser === 'edge'
-          ? settings.edgeFolder
-          : settings.chromiumFolder;
     return {
-      entries: await readChromeReadingList(sourcePath, log, folder, browser),
+      entries: await readChromeReadingList(sourcePath, log, settings.bookmarksFolder, browser),
       sourcePath,
     };
   }
   if (isFirefoxBrowser(browser)) {
     return {
-      entries: await readFirefoxReadingList(sourcePath, log, settings.firefoxFolder),
+      entries: await readFirefoxReadingList(sourcePath, log, settings.bookmarksFolder),
       sourcePath,
     };
   }

@@ -76,26 +76,8 @@ export interface ReadingListSettings {
   browser: BrowserType;
   /** Selected local profile per browser. Empty string = use the detected default profile. */
   profiles: Record<BrowserType, string>;
-  /**
-   * Bookmark folder inside Chrome's Bookmarks file.
-   * Defaults to "Other Bookmarks/Reading List".
-   */
-  chromeFolder: string;
-  /**
-   * Favorites folder inside Microsoft Edge's Bookmarks file.
-   * Defaults to "Other Favorites/Reading List".
-   */
-  edgeFolder: string;
-  /**
-   * Bookmark folder inside Chromium's Bookmarks file.
-   * Defaults to "Other Bookmarks/Reading List".
-   */
-  chromiumFolder: string;
-  /**
-   * Firefox has no native reading list, so its source reads bookmarks from a bookmark folder
-   * (matched by name, anywhere in the tree). Empty disables the Firefox source.
-   */
-  firefoxFolder: string;
+  /** Bookmark folder to import, matched by name. Defaults to "Reading List". */
+  bookmarksFolder: string;
   /** 0 disables periodic sync. */
   intervalMinutes: number;
   syncOnStartup: boolean;

@@ -1,10 +1,26 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { normalizeSettings, DEFAULT_SETTINGS, MAX_INTERVAL_MINUTES } from '../src/settings';
+import {
+  normalizeSettings,
+  DEFAULT_SETTINGS,
+  MAX_INTERVAL_MINUTES,
+  defaultBookmarksFolder,
+} from '../src/settings';
 
 test('normalizeSettings returns defaults when given undefined or empty object', () => {
   assert.deepEqual(normalizeSettings(undefined), DEFAULT_SETTINGS);
   assert.deepEqual(normalizeSettings({}), DEFAULT_SETTINGS);
+  assert.equal(DEFAULT_SETTINGS.bookmarksFolder, 'Other Bookmarks/Reading List');
+});
+
+test('defaultBookmarksFolder returns the browser-specific folder', () => {
+  assert.equal(defaultBookmarksFolder('chrome'), 'Other Bookmarks/Reading List');
+  assert.equal(defaultBookmarksFolder('chromium'), 'Other Bookmarks/Reading List');
+  assert.equal(defaultBookmarksFolder('brave'), 'Other Bookmarks/Reading List');
+  assert.equal(defaultBookmarksFolder('firefox'), 'Other Bookmarks/Reading List');
+  assert.equal(defaultBookmarksFolder('firefox-developer-edition'), 'Other Bookmarks/Reading List');
+  assert.equal(defaultBookmarksFolder('edge'), 'Other Favorites/Reading List');
+  assert.equal(defaultBookmarksFolder('safari'), 'Reading List');
 });
 
 test('normalizeSettings clamps intervalMinutes to [0, max]', () => {
@@ -34,34 +50,36 @@ test('normalizeSettings stores selected profiles and ignores legacy file paths',
   );
 });
 
-test('normalizeSettings keeps the chrome, edge, and chromium folders', () => {
-  assert.equal(normalizeSettings({}).chromeFolder, DEFAULT_SETTINGS.chromeFolder);
-  assert.equal(normalizeSettings({}).edgeFolder, DEFAULT_SETTINGS.edgeFolder);
-  assert.equal(normalizeSettings({}).chromiumFolder, DEFAULT_SETTINGS.chromiumFolder);
+test('normalizeSettings uses one folder setting and migrates the selected browser value', () => {
+  assert.equal(normalizeSettings({}).bookmarksFolder, DEFAULT_SETTINGS.bookmarksFolder);
   assert.equal(
-    normalizeSettings({ chromeFolder: 'Bookmarks Bar/Read Later' }).chromeFolder,
+    normalizeSettings({ bookmarksFolder: 'Bookmarks Bar/Read Later' }).bookmarksFolder,
     'Bookmarks Bar/Read Later',
   );
   assert.equal(
-    normalizeSettings({ edgeFolder: 'Favorites Bar/Reading List' }).edgeFolder,
+    normalizeSettings({ browser: 'edge', edgeFolder: 'Favorites Bar/Reading List' })
+      .bookmarksFolder,
     'Favorites Bar/Reading List',
   );
   assert.equal(
-    normalizeSettings({ chromiumFolder: 'Reading List' }).chromiumFolder,
-    'Reading List',
+    normalizeSettings({ browser: 'brave', chromiumFolder: 'Saved' }).bookmarksFolder,
+    'Saved',
   );
   assert.equal(
-    normalizeSettings({ edgeFolder: 123 as unknown as string }).edgeFolder,
-    DEFAULT_SETTINGS.edgeFolder,
+    normalizeSettings({ browser: 'firefox', firefoxFolder: 'Read Later' }).bookmarksFolder,
+    'Read Later',
   );
-});
-
-test('normalizeSettings keeps the firefox folder', () => {
-  assert.equal(normalizeSettings({}).firefoxFolder, DEFAULT_SETTINGS.firefoxFolder);
-  assert.equal(normalizeSettings({ firefoxFolder: 'Saved' }).firefoxFolder, 'Saved');
   assert.equal(
-    normalizeSettings({ firefoxFolder: 7 as unknown as string }).firefoxFolder,
-    DEFAULT_SETTINGS.firefoxFolder,
+    normalizeSettings({ bookmarksFolder: 123 as unknown as string }).bookmarksFolder,
+    DEFAULT_SETTINGS.bookmarksFolder,
+  );
+  assert.equal(
+    normalizeSettings({ browser: 'edge', bookmarksFolder: 'Reading List' }).bookmarksFolder,
+    'Other Favorites/Reading List',
+  );
+  assert.equal(
+    normalizeSettings({ browser: 'firefox', firefoxFolder: 'Reading List' }).bookmarksFolder,
+    'Other Bookmarks/Reading List',
   );
 });
 
