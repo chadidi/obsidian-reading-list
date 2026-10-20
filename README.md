@@ -17,15 +17,14 @@ Browse your browser reading list in a dashboard panel inside Obsidian, without t
 
 ## Installation
 
-### Beta testing via BRAT (Recommended)
+### Community plugins (Recommended)
 
-You can test prereleases or install directly from GitHub using the [BRAT](https://github.com/TfTHacker/obsidian42-brat) plugin:
+Install directly from the [Obsidian community plugins](https://community.obsidian.md/plugins/reading-list) store:
 
-1. Install and enable the **BRAT** plugin from **Settings** → **Community plugins**.
-2. Open **Settings** → **BRAT**.
-3. Under **Beta plugin list**, select **Add beta plugin**.
-4. Enter `chadidi/obsidian-reading-list` (or `https://github.com/chadidi/obsidian-reading-list`) and select **Add plugin**.
-5. Enable **Reading List** under **Settings** → **Community plugins**.
+1. Open Obsidian **Settings** → **Community plugins**.
+2. Select **Browse** and search for **Reading List**.
+3. Select **Install**, then select **Enable**.
+4. Open **Settings** → **Reading List** to configure the plugin.
 
 ### Manual installation
 

@@ -77,14 +77,14 @@
 .workspace-leaf-content[data-type='reading-list-dashboard'] .view-content,
 .workspace-leaf-content .view-content.rl-dashboard,
 .view-content.rl-dashboard,
-.rl-dashboard {
-  padding: 0 !important;
-  padding-bottom: 0 !important;
-  margin: 0 !important;
-  margin-bottom: 0 !important;
-  border: none !important;
-  border-bottom: none !important;
-  box-shadow: none !important;
+body .rl-dashboard {
+  padding: 0;
+  padding-bottom: 0;
+  margin: 0;
+  margin-bottom: 0;
+  border: none;
+  border-bottom: none;
+  box-shadow: none;
 }
 
 .rl-dashboard {
@@ -108,7 +108,7 @@
   gap: var(--size-2-1, 4px);
 }
 
-.rl-action-button {
+.rl-dashboard .rl-action-button {
   appearance: none;
   -webkit-appearance: none;
   display: flex;
@@ -118,45 +118,32 @@
   height: 26px;
   min-width: 26px;
   min-height: 26px;
-  padding: 0 !important;
+  padding: 0;
   margin: 0;
-  border: none !important;
+  border: none;
   outline: none;
-  box-shadow: none !important;
-  background: transparent !important;
-  background-color: transparent !important;
+  box-shadow: none;
+  background: transparent;
   color: var(--text-muted);
   cursor: pointer;
   border-radius: var(--radius-s);
   transition: background-color 0.15s ease, color 0.15s ease;
 }
 
-.rl-action-button:hover {
+.rl-dashboard .rl-action-button:hover {
   color: var(--text-normal);
-  background-color: rgba(0, 0, 0, 0.04) !important;
-  background-color: color-mix(in srgb, var(--background-modifier-hover) 60%, transparent) !important;
+  background-color: var(--background-modifier-hover);
 }
 
-.theme-dark .rl-action-button:hover {
-  background-color: rgba(255, 255, 255, 0.06) !important;
-  background-color: color-mix(in srgb, var(--background-modifier-hover) 60%, transparent) !important;
-}
-
-.rl-action-button.is-active {
+.rl-dashboard .rl-action-button.is-active {
   color: var(--text-accent);
-  background-color: rgba(0, 0, 0, 0.05) !important;
-  background-color: color-mix(in srgb, var(--background-modifier-hover) 75%, transparent) !important;
+  background-color: var(--background-modifier-active-hover, var(--background-modifier-hover));
 }
 
-.theme-dark .rl-action-button.is-active {
-  background-color: rgba(255, 255, 255, 0.08) !important;
-  background-color: color-mix(in srgb, var(--background-modifier-hover) 75%, transparent) !important;
-}
-
-.rl-action-button svg,
-.rl-action-button .svg-icon {
-  width: 15px !important;
-  height: 15px !important;
+.rl-dashboard .rl-action-button svg,
+.rl-dashboard .rl-action-button .svg-icon {
+  width: 15px;
+  height: 15px;
   display: block;
 }
 
@@ -200,16 +187,16 @@
   pointer-events: none;
 }
 
-.rl-search-container .search-input-container input[type="search"],
-.rl-search-container .search-input-container input {
+.rl-dashboard .rl-search-container .search-input-container input[type="search"],
+.rl-dashboard .rl-search-container .search-input-container input {
   width: 100%;
   height: var(--input-height);
   line-height: var(--input-height);
-  border-radius: 9999px !important;
+  border-radius: 9999px;
   background-color: var(--background-primary);
   border: 1px solid var(--background-modifier-border);
   font-size: var(--font-ui-smaller);
-  padding-inline-start: 32px !important;
+  padding-inline-start: 32px;
   padding-inline-end: 28px;
   color: var(--text-normal);
   outline: none;
@@ -217,31 +204,31 @@
   transition: border-color 0.15s ease, box-shadow 0.15s ease;
 }
 
-.rl-search-container .search-input-container input:focus {
+.rl-dashboard .rl-search-container .search-input-container input:focus {
   border-color: var(--interactive-accent);
   box-shadow: 0 0 0 1px var(--interactive-accent);
 }
 
-.rl-search-container .search-input-clear-button {
+.rl-dashboard .rl-search-container .search-input-clear-button {
   position: absolute;
-  top: 0 !important;
-  bottom: 0 !important;
-  height: 100% !important;
-  margin: 0 !important;
-  transform: none !important;
+  top: 0;
+  bottom: 0;
+  height: 100%;
+  margin: 0;
+  transform: none;
   display: flex;
-  align-items: center !important;
-  justify-content: center !important;
-  inset-inline-end: 8px !important;
-  padding: 0 !important;
+  align-items: center;
+  justify-content: center;
+  inset-inline-end: 8px;
+  padding: 0;
 }
 
-.rl-search-container .search-input-container input:placeholder-shown ~ .search-input-clear-button {
-  display: none !important;
+.rl-dashboard .rl-search-container .search-input-container input:placeholder-shown ~ .search-input-clear-button {
+  display: none;
 }
 
-.rl-search-container .search-input-container input:not(:placeholder-shown) ~ .search-input-clear-button {
-  display: flex !important;
+.rl-dashboard .rl-search-container .search-input-container input:not(:placeholder-shown) ~ .search-input-clear-button {
+  display: flex;
 }
 
 .rl-summary {
@@ -262,16 +249,16 @@
   color: var(--text-faint);
 }
 
-.rl-list {
+.rl-dashboard .rl-list {
   flex: 1 1 auto;
   overflow-y: auto;
   display: flex;
   flex-direction: column;
   gap: 2px;
-  padding: 0 var(--size-4-2) 0 !important;
-  padding-bottom: 0 !important;
-  margin-bottom: 0 !important;
-  border-bottom: none !important;
+  padding: 0 var(--size-4-2) 0;
+  padding-bottom: 0;
+  margin-bottom: 0;
+  border-bottom: none;
 }
 
 .rl-item {

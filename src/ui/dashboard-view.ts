@@ -1,4 +1,12 @@
-import { ItemView, Menu, Notice, SearchComponent, setIcon, type App, type WorkspaceLeaf } from 'obsidian';
+import {
+  ItemView,
+  Menu,
+  Notice,
+  SearchComponent,
+  setIcon,
+  type App,
+  type WorkspaceLeaf,
+} from 'obsidian';
 import type ReadingListPlugin from '../main';
 import { BROWSER_LABELS, type StoredEntry } from '../types';
 
@@ -365,28 +373,6 @@ export class ReadingListDashboardView extends ItemView {
             entry.read = !entry.read;
             await this.plugin.saveSettings();
             this.renderList();
-          }),
-      );
-
-      menu.addSeparator();
-
-      menu.addItem((i) =>
-        i
-          .setTitle('Copy URL')
-          .setIcon('copy')
-          .onClick(() => {
-            void navigator.clipboard.writeText(entry.url);
-            new Notice('URL copied to clipboard');
-          }),
-      );
-
-      menu.addItem((i) =>
-        i
-          .setTitle('Copy title')
-          .setIcon('copy')
-          .onClick(() => {
-            void navigator.clipboard.writeText(entry.title || entry.url);
-            new Notice('Title copied to clipboard');
           }),
       );
 
