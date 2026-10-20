@@ -6,7 +6,7 @@ Browse your browser reading list in a dashboard panel inside Obsidian, without t
 
 ## Features
 
-- **Multi-browser support**: Read your reading list from Google Chrome, Chromium (Brave, Edge, etc.), Safari (macOS), or Mozilla Firefox (via a bookmark folder).
+- **Multi-browser support**: Read your reading list from Google Chrome, Microsoft Edge, Chromium (Brave, Arc, etc.), Safari (macOS), or Mozilla Firefox (via a bookmark folder).
 - **Dashboard panel**: Every item lives in a dedicated panel in Obsidian's left sidebar, next to the core Bookmarks panel. Open it from the ribbon icon, the command palette, or the settings tab.
 - **Search, filter, sort**: Filter by read state (when the browser tracks it), search by title or URL, and sort by date added or title.
 - **Read inside Obsidian**: Selecting an item opens the page as a new tab in the main workspace using the core Web Viewer, where notes normally open.
@@ -68,8 +68,9 @@ Selecting an item's title opens the page as a new tab in the main workspace, usi
 
 | Browser | Default file location | Notes |
 |---|---|---|
-| **Google Chrome** | `…/Google/Chrome/Default/Reading List` (macOS / Windows / Linux) | JSON file named `Reading List` (no extension) with a top-level `reading_list` array. Custom profiles, or other Chromium-based browsers (e.g. Brave, Edge, Arc), can be used by providing their custom path in settings. Chrome records the read state. |
-| **Chromium** | `…/Chromium/Default/Reading List` (macOS / Windows / Linux) | Same JSON layout as Chrome. Detect the default Chromium profile automatically, or set a custom profile path in settings. |
+| **Google Chrome** | `…/Google/Chrome/Default/Bookmarks` (macOS / Windows / Linux) | Reads bookmarks from your configured bookmark folder (defaults to `Other Bookmarks/Reading List`). Automatically detects `Bookmarks` or `AccountBookmarks` (when Google Account sync is enabled). Custom profiles or exported JSON files are supported via custom paths. |
+| **Microsoft Edge** | `…/Microsoft Edge/Default/Bookmarks` (macOS / Windows / Linux) | Reads favorites from your configured favorites folder (defaults to `Other Favorites/Reading List`). Detects the default Edge profile automatically, or set a custom path in settings. |
+| **Chromium** | `…/Chromium/Default/Bookmarks` (macOS / Windows / Linux) | Reads bookmarks from your configured bookmark folder (defaults to `Other Bookmarks/Reading List`). Detects the default Chromium/Brave/Arc profile automatically, or set a custom path in settings. |
 | **Safari** | `~/Library/Safari/Bookmarks.plist` (macOS) | Binary plist, parsed directly in-process. Safari keeps its Reading List inside this file under a synthetic `com.apple.ReadingList` folder, which the plugin reads while ignoring regular bookmarks. Because macOS protects `~/Library/Safari/`, either use **Choose Bookmarks.plist** in settings to grant read access to just that file for the session (no Full Disk Access needed), or grant Obsidian **Full Disk Access** in macOS **System Settings** → **Privacy & Security**. Safari records an article excerpt but no read state, and no creation dates. |
 | **Firefox** | Auto-detected `places.sqlite` or `bookmarkbackups/*.jsonlz4` | Firefox has no native reading list, so the plugin reads the bookmarks inside a folder you name (matched by name anywhere in the tree). It reads live bookmarks from `places.sqlite` with the SQLite module built into Obsidian, on a temporary copy taken together with its `-wal` file so uncheckpointed changes are included. Alternatively, point to a `bookmarkbackups/*.jsonlz4` file or directory for native decompression. |
 

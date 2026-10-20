@@ -39,7 +39,11 @@ test('expandPath expands tilde and environment variables', () => {
 test('defaultBrowserPath returns expected path format by platform', () => {
   const chromePath = defaultBrowserPath('chrome');
   assert.ok(chromePath.length > 0);
-  assert.match(chromePath, /Reading List/);
+  assert.match(chromePath, /Bookmarks/);
+
+  const edgePath = defaultBrowserPath('edge');
+  assert.ok(edgePath.length > 0);
+  assert.match(edgePath, /Bookmarks/);
 
   if (process.platform === 'darwin') {
     const safariPath = defaultBrowserPath('safari');

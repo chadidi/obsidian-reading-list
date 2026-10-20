@@ -19,6 +19,29 @@ test('normalizeSettings clamps intervalMinutes to [0, max]', () => {
 test('normalizeSettings validates browser', () => {
   assert.equal(normalizeSettings({ browser: 'internet-explorer' as never }).browser, 'chrome');
   assert.equal(normalizeSettings({ browser: 'firefox' }).browser, 'firefox');
+  assert.equal(normalizeSettings({ browser: 'edge' }).browser, 'edge');
+});
+
+test('normalizeSettings keeps the chrome, edge, and chromium folders', () => {
+  assert.equal(normalizeSettings({}).chromeFolder, DEFAULT_SETTINGS.chromeFolder);
+  assert.equal(normalizeSettings({}).edgeFolder, DEFAULT_SETTINGS.edgeFolder);
+  assert.equal(normalizeSettings({}).chromiumFolder, DEFAULT_SETTINGS.chromiumFolder);
+  assert.equal(
+    normalizeSettings({ chromeFolder: 'Bookmarks Bar/Read Later' }).chromeFolder,
+    'Bookmarks Bar/Read Later',
+  );
+  assert.equal(
+    normalizeSettings({ edgeFolder: 'Favorites Bar/Reading List' }).edgeFolder,
+    'Favorites Bar/Reading List',
+  );
+  assert.equal(
+    normalizeSettings({ chromiumFolder: 'Reading List' }).chromiumFolder,
+    'Reading List',
+  );
+  assert.equal(
+    normalizeSettings({ edgeFolder: 123 as unknown as string }).edgeFolder,
+    DEFAULT_SETTINGS.edgeFolder,
+  );
 });
 
 test('normalizeSettings keeps the firefox folder', () => {

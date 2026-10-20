@@ -2,7 +2,10 @@ import { isBrowserType, type ReadingListSettings } from './types';
 
 export const DEFAULT_SETTINGS: ReadingListSettings = {
   browser: 'chrome',
-  paths: { chrome: '', chromium: '', firefox: '', safari: '' },
+  paths: { chrome: '', edge: '', chromium: '', firefox: '', safari: '' },
+  chromeFolder: 'Other Bookmarks/Reading List',
+  edgeFolder: 'Other Favorites/Reading List',
+  chromiumFolder: 'Other Bookmarks/Reading List',
   firefoxFolder: 'Reading List',
   intervalMinutes: 0,
   syncOnStartup: true,
@@ -25,6 +28,14 @@ export function normalizeSettings(
   return {
     browser: isBrowserType(raw?.browser) ? raw.browser : DEFAULT_SETTINGS.browser,
     paths: { ...DEFAULT_SETTINGS.paths, ...(raw?.paths ?? {}) },
+    chromeFolder:
+      typeof raw?.chromeFolder === 'string' ? raw.chromeFolder : DEFAULT_SETTINGS.chromeFolder,
+    edgeFolder:
+      typeof raw?.edgeFolder === 'string' ? raw.edgeFolder : DEFAULT_SETTINGS.edgeFolder,
+    chromiumFolder:
+      typeof raw?.chromiumFolder === 'string'
+        ? raw.chromiumFolder
+        : DEFAULT_SETTINGS.chromiumFolder,
     firefoxFolder:
       typeof raw?.firefoxFolder === 'string' ? raw.firefoxFolder : DEFAULT_SETTINGS.firefoxFolder,
     intervalMinutes:

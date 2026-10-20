@@ -29,8 +29,20 @@ export async function readReadingList(
 
   switch (browser) {
     case 'chrome':
+      return {
+        entries: await readChromeReadingList(sourcePath, log, settings.chromeFolder, 'chrome'),
+        sourcePath,
+      };
+    case 'edge':
+      return {
+        entries: await readChromeReadingList(sourcePath, log, settings.edgeFolder, 'edge'),
+        sourcePath,
+      };
     case 'chromium':
-      return { entries: await readChromeReadingList(sourcePath, log, browser), sourcePath };
+      return {
+        entries: await readChromeReadingList(sourcePath, log, settings.chromiumFolder, 'chromium'),
+        sourcePath,
+      };
     case 'firefox':
       return {
         entries: await readFirefoxReadingList(sourcePath, log, settings.firefoxFolder),

@@ -1,15 +1,16 @@
 import type { Logger } from './logger';
 
-export type BrowserType = 'chrome' | 'chromium' | 'firefox' | 'safari';
+export type BrowserType = 'chrome' | 'edge' | 'chromium' | 'firefox' | 'safari';
 
 export const BROWSER_LABELS: Record<BrowserType, string> = {
   chrome: 'Google Chrome',
+  edge: 'Microsoft Edge',
   chromium: 'Chromium',
   firefox: 'Mozilla Firefox',
   safari: 'Safari',
 };
 
-const BROWSERS: BrowserType[] = ['chrome', 'chromium', 'firefox', 'safari'];
+const BROWSERS: BrowserType[] = ['chrome', 'edge', 'chromium', 'firefox', 'safari'];
 
 /** True when the value is one of the browsers the plugin knows how to read. */
 export function isBrowserType(value: unknown): value is BrowserType {
@@ -80,6 +81,21 @@ export interface ReadingListSettings {
   browser: BrowserType;
   /** Per-browser source path. Empty string = use the auto-detected default. */
   paths: Record<BrowserType, string>;
+  /**
+   * Bookmark folder inside Chrome's Bookmarks file.
+   * Defaults to "Other Bookmarks/Reading List".
+   */
+  chromeFolder: string;
+  /**
+   * Favorites folder inside Microsoft Edge's Bookmarks file.
+   * Defaults to "Other Favorites/Reading List".
+   */
+  edgeFolder: string;
+  /**
+   * Bookmark folder inside Chromium's Bookmarks file.
+   * Defaults to "Other Bookmarks/Reading List".
+   */
+  chromiumFolder: string;
   /**
    * Firefox has no native reading list, so its source reads bookmarks from a bookmark folder
    * (matched by name, anywhere in the tree). Empty disables the Firefox source.

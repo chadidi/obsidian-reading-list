@@ -12,11 +12,14 @@ import { SafariPickerModal } from './ui/safari-picker-modal';
 
 const PATH_HELP: Record<BrowserType, string> = {
   chrome:
-    'The Google Chrome "Reading List" JSON file (no extension) inside your profile folder. For a ' +
-    'different profile, enter its Reading List file here.',
+    'The Google Chrome Bookmarks (or AccountBookmarks) JSON file inside your profile folder. For a ' +
+    'different profile, enter its Bookmarks file here.',
+  edge:
+    'The Microsoft Edge Bookmarks JSON file inside your profile folder. For a different profile, ' +
+    'enter its Bookmarks file here.',
   chromium:
-    'The "Reading List" JSON file of Chromium or another Chromium-based browser (Brave, Edge...). ' +
-    'For a different profile, enter its Reading List file here.',
+    'The Bookmarks JSON file of Chromium or another Chromium-based browser (Brave, Edge...). ' +
+    'For a different profile, enter its Bookmarks file here.',
   firefox:
     'Firefox has no reading list, so the plugin imports bookmarks instead. Point this at ' +
     'places.sqlite (live data, read with the SQLite module built into Obsidian) or a ' +
@@ -29,8 +32,12 @@ const PATH_HELP: Record<BrowserType, string> = {
 
 /** What the user can do to let the plugin read the selected browser's reading list. */
 const ACCESS_HINT: Record<BrowserType, string> = {
-  chrome: 'Open Google Chrome and add a page to its Reading List, then reopen this tab.',
-  chromium: 'Open Chromium and add a page to its Reading List, then reopen this tab.',
+  chrome:
+    'Open Google Chrome and bookmark at least one page into your reading-list folder, then reopen this tab.',
+  edge:
+    'Open Microsoft Edge and add at least one favorite into your reading-list folder, then reopen this tab.',
+  chromium:
+    'Open Chromium and bookmark at least one page into your reading-list folder, then reopen this tab.',
   firefox:
     'Open Mozilla Firefox at least once (or let it create a daily bookmark backup), then reopen this tab.',
   safari:
@@ -90,7 +97,8 @@ export class ReadingListSettingTab extends PluginSettingTab {
           dd
             .addOptions({
               chrome: BROWSER_LABELS.chrome,
-              chromium: `${BROWSER_LABELS.chromium} (Brave, Edge...)`,
+              edge: BROWSER_LABELS.edge,
+              chromium: `${BROWSER_LABELS.chromium} (Brave, Arc...)`,
               firefox: `${BROWSER_LABELS.firefox} (bookmarks)`,
               safari: `${BROWSER_LABELS.safari} (macOS)`,
             })
@@ -133,6 +141,129 @@ export class ReadingListSettingTab extends PluginSettingTab {
         setting.descEl.addClass('bb-path-desc');
       },
     });
+
+    if (browser === 'chrome') {
+      items.push({
+        name: 'Google Chrome bookmarks folder',
+        desc: createFragment((frag) => {
+          frag.appendText(
+            'Google Chrome stores reading-list entries in an internal database, so the plugin imports bookmarks ' +
+              'from a folder instead. Use ',
+          );
+          frag.createEl('code', { text: '/' });
+          frag.appendText(' to separate nested folders, e.g. ');
+          frag.createEl('code', { text: 'Other bookmarks/reading list' });
+          frag.appendText(
+            '. Matching is case-insensitive. Leave empty to import nothing from Chrome.',
+          );
+        }),
+        render: (setting) => {
+          setting
+            .addText((text) => {
+              text
+                .setPlaceholder('E.g. Other bookmarks/reading list (leave empty to disable)')
+                .setValue(settings.chromeFolder)
+                .onChange((value) => {
+                  settings.chromeFolder = value.trim();
+                  this.saveSoon();
+                });
+              text.inputEl.addClass('bb-wide-input');
+            })
+            .addExtraButton((btn) =>
+              btn
+                .setIcon('x')
+                .setTooltip('Clear: import nothing from chrome')
+                .onClick(async () => {
+                  settings.chromeFolder = '';
+                  await this.plugin.saveSettings();
+                  this.update();
+                }),
+            );
+        },
+      });
+    }
+
+    if (browser === 'edge') {
+      items.push({
+        name: 'Microsoft Edge favorites folder',
+        desc: createFragment((frag) => {
+          frag.appendText(
+            'Microsoft Edge stores reading-list entries in an internal database, so the plugin imports favorites ' +
+              'from a folder instead. Use ',
+          );
+          frag.createEl('code', { text: '/' });
+          frag.appendText(' to separate nested folders, e.g. ');
+          frag.createEl('code', { text: 'Other favorites/reading list' });
+          frag.appendText(
+            '. Matching is case-insensitive. Leave empty to import nothing from Edge.',
+          );
+        }),
+        render: (setting) => {
+          setting
+            .addText((text) => {
+              text
+                .setPlaceholder('E.g. Other favorites/reading list (leave empty to disable)')
+                .setValue(settings.edgeFolder)
+                .onChange((value) => {
+                  settings.edgeFolder = value.trim();
+                  this.saveSoon();
+                });
+              text.inputEl.addClass('bb-wide-input');
+            })
+            .addExtraButton((btn) =>
+              btn
+                .setIcon('x')
+                .setTooltip('Clear: import nothing from edge')
+                .onClick(async () => {
+                  settings.edgeFolder = '';
+                  await this.plugin.saveSettings();
+                  this.update();
+                }),
+            );
+        },
+      });
+    }
+
+    if (browser === 'chromium') {
+      items.push({
+        name: 'Chromium bookmarks folder',
+        desc: createFragment((frag) => {
+          frag.appendText(
+            'Chromium stores reading-list entries in an internal database, so the plugin imports bookmarks ' +
+              'from a folder instead. Use ',
+          );
+          frag.createEl('code', { text: '/' });
+          frag.appendText(' to separate nested folders, e.g. ');
+          frag.createEl('code', { text: 'Other bookmarks/reading list' });
+          frag.appendText(
+            '. Matching is case-insensitive. Leave empty to import nothing from Chromium.',
+          );
+        }),
+        render: (setting) => {
+          setting
+            .addText((text) => {
+              text
+                .setPlaceholder('E.g. Other bookmarks/reading list (leave empty to disable)')
+                .setValue(settings.chromiumFolder)
+                .onChange((value) => {
+                  settings.chromiumFolder = value.trim();
+                  this.saveSoon();
+                });
+              text.inputEl.addClass('bb-wide-input');
+            })
+            .addExtraButton((btn) =>
+              btn
+                .setIcon('x')
+                .setTooltip('Clear: import nothing from chromium')
+                .onClick(async () => {
+                  settings.chromiumFolder = '';
+                  await this.plugin.saveSettings();
+                  this.update();
+                }),
+            );
+        },
+      });
+    }
 
     if (browser === 'firefox') {
       items.push({

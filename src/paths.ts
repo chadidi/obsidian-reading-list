@@ -68,22 +68,50 @@ export function detectFirefoxPlacesPath(): string | null {
   return found[0]?.file ?? null;
 }
 
-/** The user data directory of a Chromium-based browser (Chrome or Chromium) for the current platform. */
-function chromiumUserDataDir(kind: 'chrome' | 'chromium'): string {
+/** The user data directory of a Chromium-based browser (Chrome, Edge, or Chromium) for the current platform. */
+function chromiumUserDataDir(kind: 'chrome' | 'edge' | 'chromium'): string {
   const home = os.homedir();
   const local = process.env.LOCALAPPDATA ?? path.join(home, 'AppData', 'Local');
   switch (process.platform) {
     case 'darwin':
-      return kind === 'chrome'
-        ? path.join(home, 'Library', 'Application Support', 'Google', 'Chrome')
-        : path.join(home, 'Library', 'Application Support', 'Chromium');
+      if (kind === 'chrome') return path.join(home, 'Library', 'Application Support', 'Google', 'Chrome');
+      if (kind === 'edge') return path.join(home, 'Library', 'Application Support', 'Microsoft Edge');
+      return path.join(home, 'Library', 'Application Support', 'Chromium');
     case 'win32':
-      return kind === 'chrome'
-        ? path.join(local, 'Google', 'Chrome', 'User Data')
-        : path.join(local, 'Chromium', 'User Data');
+      if (kind === 'chrome') return path.join(local, 'Google', 'Chrome', 'User Data');
+      if (kind === 'edge') return path.join(local, 'Microsoft', 'Edge', 'User Data');
+      return path.join(local, 'Chromium', 'User Data');
     default:
-      return path.join(home, '.config', kind === 'chrome' ? 'google-chrome' : 'chromium');
+      if (kind === 'chrome') return path.join(home, '.config', 'google-chrome');
+      if (kind === 'edge') return path.join(home, '.config', 'microsoft-edge');
+      return path.join(home, '.config', 'chromium');
   }
+}
+
+/**
+ * The bookmarks file inside a Chromium profile directory. Modern Chrome/Chromium stores
+ * bookmarks in "Bookmarks", or in "AccountBookmarks" if account sync is active.
+ */
+export function chromiumBookmarksFile(profileDir: string): string {
+  const account = path.join(profileDir, 'AccountBookmarks');
+  if (fs.existsSync(account)) return account;
+  const bookmarks = path.join(profileDir, 'Bookmarks');
+  if (fs.existsSync(bookmarks)) return bookmarks;
+  return bookmarks;
+}
+
+/** Finds Bookmarks or AccountBookmarks of the most plausible Chromium profile. */
+export function detectChromiumBookmarksPath(kind: 'chrome' | 'edge' | 'chromium'): string {
+  const base = chromiumUserDataDir(kind);
+  const profiles = ['Default', 'Profile 1', 'Profile 2', 'Profile 3', 'Profile 4', 'Profile 5'];
+  for (const prof of profiles) {
+    const profDir = path.join(base, prof);
+    const account = path.join(profDir, 'AccountBookmarks');
+    if (fs.existsSync(account)) return account;
+    const bookmarks = path.join(profDir, 'Bookmarks');
+    if (fs.existsSync(bookmarks)) return bookmarks;
+  }
+  return path.join(base, 'Default', 'Bookmarks');
 }
 
 /**
@@ -100,9 +128,11 @@ export function defaultBrowserPath(browser: BrowserType): string {
   const home = os.homedir();
   switch (browser) {
     case 'chrome':
-      return chromiumReadingListFile(path.join(chromiumUserDataDir('chrome'), 'Default'));
+      return detectChromiumBookmarksPath('chrome');
+    case 'edge':
+      return detectChromiumBookmarksPath('edge');
     case 'chromium':
-      return chromiumReadingListFile(path.join(chromiumUserDataDir('chromium'), 'Default'));
+      return detectChromiumBookmarksPath('chromium');
     case 'safari':
       return process.platform === 'darwin'
         ? path.join(home, 'Library', 'Safari', 'Bookmarks.plist')
@@ -115,7 +145,18 @@ export function defaultBrowserPath(browser: BrowserType): string {
 /** The configured path, or the platform default. Throws a user-friendly error if neither exists. */
 export function resolveSourcePath(browser: BrowserType, configured: string): string {
   const custom = expandPath(configured);
-  if (custom) return custom;
+  if (custom) {
+    if (browser === 'chrome' || browser === 'edge' || browser === 'chromium') {
+      try {
+        if (fs.existsSync(custom) && fs.statSync(custom).isDirectory()) {
+          return chromiumBookmarksFile(custom);
+        }
+      } catch {
+        /* fall through */
+      }
+    }
+    return custom;
+  }
   const fallback = defaultBrowserPath(browser);
   if (fallback) return fallback;
   throw new ReadingListSourceError(
