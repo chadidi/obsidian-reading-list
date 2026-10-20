@@ -20,6 +20,18 @@ test('normalizeSettings validates browser', () => {
   assert.equal(normalizeSettings({ browser: 'internet-explorer' as never }).browser, 'chrome');
   assert.equal(normalizeSettings({ browser: 'firefox' }).browser, 'firefox');
   assert.equal(normalizeSettings({ browser: 'edge' }).browser, 'edge');
+  assert.equal(normalizeSettings({ browser: 'brave' }).browser, 'brave');
+});
+
+test('normalizeSettings stores selected profiles and ignores legacy file paths', () => {
+  assert.equal(
+    normalizeSettings({ profiles: { chrome: 'Profile 1' } }).profiles.chrome,
+    'Profile 1',
+  );
+  assert.equal(
+    normalizeSettings({ paths: { chrome: '/old/custom/Bookmarks' } }).profiles.chrome,
+    '',
+  );
 });
 
 test('normalizeSettings keeps the chrome, edge, and chromium folders', () => {

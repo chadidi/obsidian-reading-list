@@ -5,49 +5,32 @@ import {
   type SettingGroupItem,
   debounce,
 } from 'obsidian';
+import {
+  BROWSER_NAMES,
+  detectBrowsersSync,
+  detectDefaultBrowserId,
+  isChromiumBrowser,
+} from 'browsers-detect';
 import type ReadingListPlugin from './main';
-import { checkSourceAccess, defaultBrowserPath } from './paths';
+import { checkSourceAccess } from './paths';
 import { BROWSER_LABELS, type BrowserType } from './types';
 import { SafariPickerModal } from './ui/safari-picker-modal';
 
-const PATH_HELP: Record<BrowserType, string> = {
-  chrome:
-    'The Google Chrome Bookmarks (or AccountBookmarks) JSON file inside your profile folder. For a ' +
-    'different profile, enter its Bookmarks file here.',
-  edge:
-    'The Microsoft Edge Bookmarks JSON file inside your profile folder. For a different profile, ' +
-    'enter its Bookmarks file here.',
-  chromium:
-    'The Bookmarks JSON file of Chromium or another Chromium-based browser (Brave, Edge...). ' +
-    'For a different profile, enter its Bookmarks file here.',
-  firefox:
-    'Firefox has no reading list, so the plugin imports bookmarks instead. Point this at ' +
-    'places.sqlite (live data, read with the SQLite module built into Obsidian) or a ' +
-    "bookmarkbackups *.jsonlz4 file / folder (only as fresh as Firefox's last daily backup).",
-  safari:
-    "Safari's binary Bookmarks.plist (macOS only), which also stores the Safari Reading List. " +
-    'Select it with the button below to grant access without Full Disk Access, or point this ' +
-    'field at a copy of the file.',
-};
-
 /** What the user can do to let the plugin read the selected browser's reading list. */
-const ACCESS_HINT: Record<BrowserType, string> = {
-  chrome:
-    'Open Google Chrome and bookmark at least one page into your reading-list folder, then reopen this tab.',
-  edge:
-    'Open Microsoft Edge and add at least one favorite into your reading-list folder, then reopen this tab.',
-  chromium:
-    'Open Chromium and bookmark at least one page into your reading-list folder, then reopen this tab.',
-  firefox:
-    'Open Mozilla Firefox at least once (or let it create a daily bookmark backup), then reopen this tab.',
-  safari:
-    'Select ~/Library/Safari/Bookmarks.plist with the button above to grant access, or grant Obsidian ' +
-    'Full Disk Access in System Settings → Privacy & Security, then reopen this tab.',
-};
+function accessHint(browser: BrowserType): string {
+  if (browser === 'safari') {
+    return (
+      'Select ~/Library/Safari/Bookmarks.plist with the button below to grant access, or grant Obsidian ' +
+      'Full Disk Access in System Settings → Privacy & Security, then reopen this tab.'
+    );
+  }
+  return `Open ${BROWSER_LABELS[browser]} at least once so it saves bookmarks locally, then reopen this tab.`;
+}
 
 export class ReadingListSettingTab extends PluginSettingTab {
   icon = 'book-open-text';
 
+  private defaultBrowserId: BrowserType | undefined;
   private readonly saveSoon = debounce(() => void this.plugin.saveSettings(), 500, true);
   private readonly rescheduleSoon = debounce(() => this.plugin.schedulePeriodicSync(), 800, true);
 
@@ -56,6 +39,11 @@ export class ReadingListSettingTab extends PluginSettingTab {
     private readonly plugin: ReadingListPlugin,
   ) {
     super(app, plugin);
+    void detectDefaultBrowserId().then((browserId) => {
+      if (!browserId || browserId === this.defaultBrowserId) return;
+      this.defaultBrowserId = browserId;
+      this.update();
+    });
   }
 
   getSettingDefinitions(): SettingDefinitionItem[] {
@@ -65,7 +53,7 @@ export class ReadingListSettingTab extends PluginSettingTab {
 
     // Everything below depends on actually being able to read the browser's reading list,
     // so keep it hidden until that access is granted.
-    const access = checkSourceAccess(browser, settings.paths[browser]);
+    const access = checkSourceAccess(browser, settings.profiles[browser]);
     const hasSafariPick = browser === 'safari' && this.plugin.getSafariPick() !== null;
     if (!access.accessible && !hasSafariPick) {
       return [
@@ -87,6 +75,23 @@ export class ReadingListSettingTab extends PluginSettingTab {
 
   private sourceItems(browser: BrowserType): SettingGroupItem[] {
     const settings = this.plugin.settings;
+    const detectedBrowsers = detectBrowsersSync();
+    const browserOptions = Object.fromEntries(
+      detectedBrowsers
+        .filter((candidate) => candidate.installed || candidate.profiles.length > 0)
+        .map((candidate) => [
+          candidate.id,
+          `${candidate.name}${candidate.id === this.defaultBrowserId ? ' (system default)' : ''}`,
+        ]),
+    ) as Record<string, string>;
+    if (!browserOptions[browser]) browserOptions[browser] = BROWSER_NAMES[browser];
+    const selectedBrowser = detectedBrowsers.find((candidate) => candidate.id === browser);
+    const profiles = selectedBrowser?.profiles ?? [];
+    const selectedProfile =
+      profiles.find((profile) => profile.id === settings.profiles[browser]) ??
+      profiles.find((profile) => profile.isDefault && profile.bookmarkPaths.length > 0) ??
+      profiles.find((profile) => profile.isDefault) ??
+      profiles[0];
     const items: SettingGroupItem[] = [];
 
     items.push({
@@ -95,18 +100,20 @@ export class ReadingListSettingTab extends PluginSettingTab {
       render: (setting) => {
         setting.addDropdown((dd) =>
           dd
-            .addOptions({
-              chrome: BROWSER_LABELS.chrome,
-              edge: BROWSER_LABELS.edge,
-              chromium: `${BROWSER_LABELS.chromium} (Brave, Arc...)`,
-              firefox: `${BROWSER_LABELS.firefox} (bookmarks)`,
-              safari: `${BROWSER_LABELS.safari} (macOS)`,
-            })
+            .addOptions(browserOptions)
             .setValue(settings.browser)
             .onChange(async (value) => {
               settings.browser = value as BrowserType;
+              const nextBrowser = detectedBrowsers.find((candidate) => candidate.id === value);
+              const nextProfile =
+                nextBrowser?.profiles.find(
+                  (profile) => profile.isDefault && profile.bookmarkPaths.length > 0,
+                ) ??
+                nextBrowser?.profiles.find((profile) => profile.isDefault) ??
+                nextBrowser?.profiles[0];
+              settings.profiles[settings.browser] = nextProfile?.id ?? '';
               await this.plugin.saveSettings();
-              // The path help, the extra fields, and the access gate depend on the browser.
+              // The profile list and access gate depend on the browser.
               this.update();
             }),
         );
@@ -114,31 +121,26 @@ export class ReadingListSettingTab extends PluginSettingTab {
     });
 
     items.push({
-      name: 'Reading list file path',
-      desc: this.pathDescription(browser, settings.paths[browser]),
+      name: 'Profile',
+      desc: this.profileDescription(browser, selectedProfile?.id ?? settings.profiles[browser]),
       render: (setting) => {
-        setting
-          .addText((text) => {
-            text
-              .setPlaceholder(defaultBrowserPath(browser) || 'No default for this platform')
-              .setValue(settings.paths[browser])
-              .onChange((value) => {
-                settings.paths[browser] = value.trim();
-                this.saveSoon();
-              });
-            text.inputEl.addClass('bb-wide-input');
-          })
-          .addExtraButton((btn) =>
-            btn
-              .setIcon('rotate-ccw')
-              .setTooltip('Use the detected default')
-              .onClick(async () => {
-                settings.paths[browser] = '';
-                await this.plugin.saveSettings();
-                this.update();
-              }),
-          );
-        setting.descEl.addClass('bb-path-desc');
+        if (!profiles.length) return;
+        const profileOptions = Object.fromEntries(
+          profiles.map((profile) => [
+            profile.id,
+            `${profile.name}${profile.isDefault ? ' (default)' : ''}`,
+          ]),
+        );
+        setting.addDropdown((dd) =>
+          dd
+            .addOptions(profileOptions)
+            .setValue(selectedProfile?.id ?? profiles[0]?.id ?? '')
+            .onChange(async (value) => {
+              settings.profiles[browser] = value;
+              await this.plugin.saveSettings();
+              this.update();
+            }),
+        );
       },
     });
 
@@ -167,7 +169,6 @@ export class ReadingListSettingTab extends PluginSettingTab {
                   settings.chromeFolder = value.trim();
                   this.saveSoon();
                 });
-              text.inputEl.addClass('bb-wide-input');
             })
             .addExtraButton((btn) =>
               btn
@@ -208,7 +209,6 @@ export class ReadingListSettingTab extends PluginSettingTab {
                   settings.edgeFolder = value.trim();
                   this.saveSoon();
                 });
-              text.inputEl.addClass('bb-wide-input');
             })
             .addExtraButton((btn) =>
               btn
@@ -224,7 +224,7 @@ export class ReadingListSettingTab extends PluginSettingTab {
       });
     }
 
-    if (browser === 'chromium') {
+    if (isChromiumBrowser(browser) && browser !== 'chrome' && browser !== 'edge') {
       items.push({
         name: 'Chromium bookmarks folder',
         desc: createFragment((frag) => {
@@ -249,7 +249,6 @@ export class ReadingListSettingTab extends PluginSettingTab {
                   settings.chromiumFolder = value.trim();
                   this.saveSoon();
                 });
-              text.inputEl.addClass('bb-wide-input');
             })
             .addExtraButton((btn) =>
               btn
@@ -265,7 +264,7 @@ export class ReadingListSettingTab extends PluginSettingTab {
       });
     }
 
-    if (browser === 'firefox') {
+    if (browser === 'firefox' || browser === 'firefox-developer-edition') {
       items.push({
         name: 'Firefox bookmarks folder',
         desc: createFragment((frag) => {
@@ -290,7 +289,6 @@ export class ReadingListSettingTab extends PluginSettingTab {
                   settings.firefoxFolder = value.trim();
                   this.saveSoon();
                 });
-              text.inputEl.addClass('bb-wide-input');
             })
             .addExtraButton((btn) =>
               btn
@@ -322,7 +320,7 @@ export class ReadingListSettingTab extends PluginSettingTab {
         {
           name: '',
           desc:
-            `Can't read the ${BROWSER_LABELS[browser]} reading list yet. ${ACCESS_HINT[browser]} ` +
+            `Can't read the ${BROWSER_LABELS[browser]} reading list yet. ${accessHint(browser)} ` +
             'The rest of the settings will appear once access is granted.',
           searchable: false,
           render: (setting) => {
@@ -488,17 +486,25 @@ export class ReadingListSettingTab extends PluginSettingTab {
     ];
   }
 
-  /** Shows what the field currently resolves to and whether it can be read. */
-  private pathDescription(browser: BrowserType, configured: string): DocumentFragment {
+  /** Shows the selected profile's detected bookmark file and whether it can be read. */
+  private profileDescription(browser: BrowserType, profileId: string): DocumentFragment {
     return createFragment((frag) => {
-      frag.appendText(PATH_HELP[browser]);
-      frag.createEl('br');
-      const access = checkSourceAccess(browser, configured);
-      if (!access.resolved) {
-        frag.appendText(access.error ?? 'No reading-list location is known for this platform.');
+      const detected = detectBrowsersSync().find((candidate) => candidate.id === browser);
+      const profile = detected?.profiles.find((candidate) => candidate.id === profileId);
+      if (!profile) {
+        frag.appendText('No local profiles were detected for this browser.');
         return;
       }
-      frag.appendText(configured.trim() ? 'Using: ' : 'Detected default: ');
+      frag.appendText(
+        `Bookmarks from ${profile.name}. The bookmark file is detected automatically.`,
+      );
+      frag.createEl('br');
+      const access = checkSourceAccess(browser, profileId);
+      if (!access.resolved) {
+        frag.appendText(access.error ?? 'No bookmarks file was found for this profile.');
+        return;
+      }
+      frag.appendText('Using: ');
       frag.createEl('code', { text: access.resolved });
       if (!access.exists) frag.appendText(' (not found)');
       else if (!access.accessible) frag.appendText(' (no permission)');

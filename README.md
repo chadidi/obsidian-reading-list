@@ -66,13 +66,13 @@ Selecting an item's title opens the page as a new tab in the main workspace, usi
 
 ## Supported browsers
 
-| Browser | Default file location | Notes |
+The **Browser** and **Profile** menus are populated from locally detected browsers and profiles. The plugin resolves each selected profile's bookmark file automatically.
+
+| Browser family | Profile data | Notes |
 |---|---|---|
-| **Google Chrome** | `…/Google/Chrome/Default/Bookmarks` (macOS / Windows / Linux) | Reads bookmarks from your configured bookmark folder (defaults to `Other Bookmarks/Reading List`). Automatically detects `Bookmarks` or `AccountBookmarks` (when Google Account sync is enabled). Custom profiles or exported JSON files are supported via custom paths. |
-| **Microsoft Edge** | `…/Microsoft Edge/Default/Bookmarks` (macOS / Windows / Linux) | Reads favorites from your configured favorites folder (defaults to `Other Favorites/Reading List`). Detects the default Edge profile automatically, or set a custom path in settings. |
-| **Chromium** | `…/Chromium/Default/Bookmarks` (macOS / Windows / Linux) | Reads bookmarks from your configured bookmark folder (defaults to `Other Bookmarks/Reading List`). Detects the default Chromium/Brave/Arc profile automatically, or set a custom path in settings. |
-| **Safari** | `~/Library/Safari/Bookmarks.plist` (macOS) | Binary plist, parsed directly in-process. Safari keeps its Reading List inside this file under a synthetic `com.apple.ReadingList` folder, which the plugin reads while ignoring regular bookmarks. Because macOS protects `~/Library/Safari/`, either use **Choose Bookmarks.plist** in settings to grant read access to just that file for the session (no Full Disk Access needed), or grant Obsidian **Full Disk Access** in macOS **System Settings** → **Privacy & Security**. Safari records an article excerpt but no read state, and no creation dates. |
-| **Firefox** | Auto-detected `places.sqlite` or `bookmarkbackups/*.jsonlz4` | Firefox has no native reading list, so the plugin reads the bookmarks inside a folder you name (matched by name anywhere in the tree). It reads live bookmarks from `places.sqlite` with the SQLite module built into Obsidian, on a temporary copy taken together with its `-wal` file so uncheckpointed changes are included. Alternatively, point to a `bookmarkbackups/*.jsonlz4` file or directory for native decompression. |
+| **Chromium-based** (Chrome, Chromium, Edge, Brave, Arc, Vivaldi) | Profile `Bookmarks` or `AccountBookmarks` file | Reads bookmarks from the selected profile's configured folder. Defaults are `Other Bookmarks/Reading List` for Chrome and Chromium-based browsers, and `Other Favorites/Reading List` for Edge. |
+| **Firefox** and **Firefox Developer Edition** | Profile `places.sqlite` | Firefox has no native reading list, so the plugin reads bookmarks inside the configured folder (matched by name anywhere in the tree). It reads a temporary copy together with the `-wal` file so uncheckpointed changes are included. |
+| **Safari** | `~/Library/Safari/Bookmarks.plist` (macOS) | Binary plist, parsed directly in-process. Safari keeps its Reading List inside this file under a synthetic `com.apple.ReadingList` folder, which the plugin reads while ignoring regular bookmarks. Because macOS protects `~/Library/Safari/`, use **Choose Bookmarks.plist** in settings to grant read access to just that file for the session (no Full Disk Access needed), or grant Obsidian **Full Disk Access** in macOS **System Settings** → **Privacy & Security**. Safari records an article excerpt but no read state, and no creation dates. |
 
 ## Sync behavior
 

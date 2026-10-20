@@ -1,4 +1,5 @@
 import type { Logger } from '../logger';
+import { isChromiumBrowser, isFirefoxBrowser } from 'browsers-detect';
 import { resolveSourcePath } from '../paths';
 import { BROWSER_LABELS, type ReadingListEntry, type ReadingListSettings } from '../types';
 import { readChromeReadingList } from './chrome';
@@ -24,30 +25,29 @@ export async function readReadingList(
   options: ReadReadingListOptions = {},
 ): Promise<SourceReadResult> {
   const browser = settings.browser;
-  const sourcePath = resolveSourcePath(browser, settings.paths[browser]);
+  const sourcePath = resolveSourcePath(browser, settings.profiles[browser]);
   log.info(`Reading ${BROWSER_LABELS[browser]} reading list from ${sourcePath}`);
 
+  if (isChromiumBrowser(browser)) {
+    const folder =
+      browser === 'chrome'
+        ? settings.chromeFolder
+        : browser === 'edge'
+          ? settings.edgeFolder
+          : settings.chromiumFolder;
+    return {
+      entries: await readChromeReadingList(sourcePath, log, folder, browser),
+      sourcePath,
+    };
+  }
+  if (isFirefoxBrowser(browser)) {
+    return {
+      entries: await readFirefoxReadingList(sourcePath, log, settings.firefoxFolder),
+      sourcePath,
+    };
+  }
+
   switch (browser) {
-    case 'chrome':
-      return {
-        entries: await readChromeReadingList(sourcePath, log, settings.chromeFolder, 'chrome'),
-        sourcePath,
-      };
-    case 'edge':
-      return {
-        entries: await readChromeReadingList(sourcePath, log, settings.edgeFolder, 'edge'),
-        sourcePath,
-      };
-    case 'chromium':
-      return {
-        entries: await readChromeReadingList(sourcePath, log, settings.chromiumFolder, 'chromium'),
-        sourcePath,
-      };
-    case 'firefox':
-      return {
-        entries: await readFirefoxReadingList(sourcePath, log, settings.firefoxFolder),
-        sourcePath,
-      };
     case 'safari': {
       const override = options.safariOverride;
       if (override) {
@@ -55,5 +55,7 @@ export async function readReadingList(
       }
       return { entries: await readSafariReadingList(sourcePath, log), sourcePath };
     }
+    default:
+      throw new Error(`Unsupported browser: ${browser}`);
   }
 }

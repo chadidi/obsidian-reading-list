@@ -1,8 +1,16 @@
 import { isBrowserType, type ReadingListSettings } from './types';
+import { BROWSER_NAMES } from 'browsers-detect';
+
+type StoredReadingListSettings = Partial<ReadingListSettings> & {
+  /** Previous versions stored source file paths here. */
+  paths?: Record<string, string>;
+};
 
 export const DEFAULT_SETTINGS: ReadingListSettings = {
   browser: 'chrome',
-  paths: { chrome: '', edge: '', chromium: '', firefox: '', safari: '' },
+  profiles: Object.fromEntries(
+    Object.keys(BROWSER_NAMES).map((browser) => [browser, '']),
+  ) as Record<ReadingListSettings['browser'], string>,
   chromeFolder: 'Other Bookmarks/Reading List',
   edgeFolder: 'Other Favorites/Reading List',
   chromiumFolder: 'Other Bookmarks/Reading List',
@@ -22,16 +30,15 @@ export const MAX_INTERVAL_MINUTES = 10080;
  * renders a dashboard instead of one note per item.
  */
 export function normalizeSettings(
-  raw: Partial<ReadingListSettings> | undefined | null,
+  raw: StoredReadingListSettings | undefined | null,
 ): ReadingListSettings {
   const interval = raw?.intervalMinutes;
   return {
     browser: isBrowserType(raw?.browser) ? raw.browser : DEFAULT_SETTINGS.browser,
-    paths: { ...DEFAULT_SETTINGS.paths, ...(raw?.paths ?? {}) },
+    profiles: { ...DEFAULT_SETTINGS.profiles, ...(raw?.profiles ?? {}) },
     chromeFolder:
       typeof raw?.chromeFolder === 'string' ? raw.chromeFolder : DEFAULT_SETTINGS.chromeFolder,
-    edgeFolder:
-      typeof raw?.edgeFolder === 'string' ? raw.edgeFolder : DEFAULT_SETTINGS.edgeFolder,
+    edgeFolder: typeof raw?.edgeFolder === 'string' ? raw.edgeFolder : DEFAULT_SETTINGS.edgeFolder,
     chromiumFolder:
       typeof raw?.chromiumFolder === 'string'
         ? raw.chromiumFolder

@@ -1,6 +1,12 @@
 import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
+import {
+  detectBrowsersSync,
+  isChromiumBrowser,
+  isFirefoxBrowser,
+  type BrowserProfile,
+} from 'browsers-detect';
 import { ReadingListSourceError, errorMessage } from './errors';
 import { BROWSER_LABELS, type BrowserType } from './types';
 
@@ -74,8 +80,10 @@ function chromiumUserDataDir(kind: 'chrome' | 'edge' | 'chromium'): string {
   const local = process.env.LOCALAPPDATA ?? path.join(home, 'AppData', 'Local');
   switch (process.platform) {
     case 'darwin':
-      if (kind === 'chrome') return path.join(home, 'Library', 'Application Support', 'Google', 'Chrome');
-      if (kind === 'edge') return path.join(home, 'Library', 'Application Support', 'Microsoft Edge');
+      if (kind === 'chrome')
+        return path.join(home, 'Library', 'Application Support', 'Google', 'Chrome');
+      if (kind === 'edge')
+        return path.join(home, 'Library', 'Application Support', 'Microsoft Edge');
       return path.join(home, 'Library', 'Application Support', 'Chromium');
     case 'win32':
       if (kind === 'chrome') return path.join(local, 'Google', 'Chrome', 'User Data');
@@ -139,29 +147,41 @@ export function defaultBrowserPath(browser: BrowserType): string {
         : '';
     case 'firefox':
       return detectFirefoxPlacesPath() ?? '';
+    default:
+      return '';
   }
 }
 
-/** The configured path, or the platform default. Throws a user-friendly error if neither exists. */
-export function resolveSourcePath(browser: BrowserType, configured: string): string {
-  const custom = expandPath(configured);
-  if (custom) {
-    if (browser === 'chrome' || browser === 'edge' || browser === 'chromium') {
-      try {
-        if (fs.existsSync(custom) && fs.statSync(custom).isDirectory()) {
-          return chromiumBookmarksFile(custom);
-        }
-      } catch {
-        /* fall through */
-      }
-    }
-    return custom;
-  }
-  const fallback = defaultBrowserPath(browser);
-  if (fallback) return fallback;
+function profileBookmarkPath(browser: BrowserType, profilePath: string): string | null {
+  if (isChromiumBrowser(browser)) return chromiumBookmarksFile(profilePath);
+  if (isFirefoxBrowser(browser)) return path.join(profilePath, 'places.sqlite');
+  if (browser === 'safari') return path.join(profilePath, 'Bookmarks.plist');
+  return null;
+}
+
+/** Resolves the selected profile, preferring a usable default when no ID is stored. */
+export function detectedProfileBookmarkPath(
+  browser: BrowserType,
+  profiles: BrowserProfile[],
+  profileId: string,
+): string | null {
+  const profile =
+    profiles.find((candidate) => candidate.id === profileId) ??
+    profiles.find((candidate) => candidate.isDefault && candidate.bookmarkPaths.length > 0) ??
+    profiles.find((candidate) => candidate.isDefault) ??
+    profiles[0];
+  return profile?.bookmarkPaths[0] ?? (profile ? profileBookmarkPath(browser, profile.path) : null);
+}
+
+/** Resolves a selected detected profile to its bookmark file. */
+export function resolveSourcePath(browser: BrowserType, profileId: string): string {
+  const detected = detectBrowsersSync().find((candidate) => candidate.id === browser);
+  const bookmarkPath =
+    detectedProfileBookmarkPath(browser, detected?.profiles ?? [], profileId) ??
+    (profileId ? null : defaultBrowserPath(browser));
+  if (bookmarkPath) return bookmarkPath;
   throw new ReadingListSourceError(
-    `No default ${BROWSER_LABELS[browser]} reading list location is known for this platform. ` +
-      `Set the file path in the plugin settings.`,
+    `No bookmarks file was found for the selected ${BROWSER_LABELS[browser]} profile.`,
   );
 }
 
@@ -191,10 +211,10 @@ function canRead(resolved: string): boolean {
 }
 
 /** Reports whether the configured browser bookmark source is reachable and readable. */
-export function checkSourceAccess(browser: BrowserType, configured: string): SourceAccess {
+export function checkSourceAccess(browser: BrowserType, profileId: string): SourceAccess {
   let resolved: string;
   try {
-    resolved = resolveSourcePath(browser, configured);
+    resolved = resolveSourcePath(browser, profileId);
   } catch (err) {
     return { resolved: null, exists: false, accessible: false, error: errorMessage(err) };
   }

@@ -7,6 +7,7 @@ import {
   chromiumReadingListFile,
   expandPath,
   defaultBrowserPath,
+  detectedProfileBookmarkPath,
   resolveSourcePath,
 } from '../src/paths';
 import { ReadingListSourceError } from '../src/errors';
@@ -53,9 +54,52 @@ test('defaultBrowserPath returns expected path format by platform', () => {
   }
 });
 
-test('resolveSourcePath prioritizes configured path and expands it', () => {
-  const custom = resolveSourcePath('chrome', '~/custom-bookmarks.json');
-  assert.equal(custom, path.join(os.homedir(), 'custom-bookmarks.json'));
+test('detectedProfileBookmarkPath resolves the chosen browser profile', () => {
+  assert.equal(
+    detectedProfileBookmarkPath(
+      'chrome',
+      [
+        {
+          id: 'Default',
+          name: 'Default',
+          path: '/profiles/Default',
+          bookmarkPaths: ['/profiles/Default/Bookmarks'],
+          isDefault: true,
+        },
+        {
+          id: 'Profile 1',
+          name: 'Work',
+          path: '/profiles/Profile 1',
+          bookmarkPaths: ['/profiles/Profile 1/AccountBookmarks'],
+          isDefault: false,
+        },
+      ],
+      'Profile 1',
+    ),
+    '/profiles/Profile 1/AccountBookmarks',
+  );
+});
+
+test('detectedProfileBookmarkPath derives files for browsers without reported bookmark paths', () => {
+  const profile = {
+    id: 'Default',
+    name: 'Default',
+    path: '/profiles/Default',
+    bookmarkPaths: [],
+    isDefault: true,
+  };
+  assert.equal(
+    detectedProfileBookmarkPath('brave', [profile], ''),
+    path.join('/profiles/Default', 'Bookmarks'),
+  );
+  assert.equal(
+    detectedProfileBookmarkPath('firefox', [profile], ''),
+    path.join('/profiles/Default', 'places.sqlite'),
+  );
+  assert.equal(
+    detectedProfileBookmarkPath('safari', [profile], ''),
+    path.join('/profiles/Default', 'Bookmarks.plist'),
+  );
 });
 
 test('resolveSourcePath falls back to defaultBrowserPath when empty', () => {
@@ -63,14 +107,14 @@ test('resolveSourcePath falls back to defaultBrowserPath when empty', () => {
   assert.equal(resolved, defaultBrowserPath('chrome'));
 });
 
-test('resolveSourcePath throws ReadingListSourceError on unsupported platform without configured path', () => {
+test('resolveSourcePath throws when the selected browser has no detected profile', () => {
   if (process.platform !== 'darwin') {
     assert.throws(
       () => resolveSourcePath('safari', ''),
       (err: unknown) => {
         return (
           err instanceof ReadingListSourceError &&
-          /No default Safari reading list location is known/i.test(err.message)
+          /No bookmarks file was found for the selected Safari profile/i.test(err.message)
         );
       },
     );
