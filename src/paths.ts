@@ -167,8 +167,7 @@ export function detectedProfileBookmarkPath(
 ): string | null {
   const profile =
     profiles.find((candidate) => candidate.id === profileId) ??
-    profiles.find((candidate) => candidate.isDefault && candidate.bookmarkPaths.length > 0) ??
-    profiles.find((candidate) => candidate.isDefault) ??
+    profiles.find((candidate) => candidate.bookmarkPaths.length > 0) ??
     profiles[0];
   return profile?.bookmarkPaths[0] ?? (profile ? profileBookmarkPath(browser, profile.path) : null);
 }

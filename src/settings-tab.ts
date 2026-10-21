@@ -5,7 +5,7 @@ import {
   type SettingGroupItem,
   debounce,
 } from 'obsidian';
-import { BROWSER_NAMES, detectBrowsersSync, detectDefaultBrowserId } from 'browsers-detect';
+import { BROWSER_NAMES, detectBrowsersSync } from 'browsers-detect';
 import type ReadingListPlugin from './main';
 import { checkSourceAccess } from './paths';
 import { defaultBookmarksFolder } from './settings';
@@ -26,7 +26,6 @@ function accessHint(browser: BrowserType): string {
 export class ReadingListSettingTab extends PluginSettingTab {
   icon = 'book-open-text';
 
-  private defaultBrowserId: BrowserType | undefined;
   private readonly saveSoon = debounce(() => void this.plugin.saveSettings(), 500, true);
   private readonly rescheduleSoon = debounce(() => this.plugin.schedulePeriodicSync(), 800, true);
 
@@ -35,11 +34,6 @@ export class ReadingListSettingTab extends PluginSettingTab {
     private readonly plugin: ReadingListPlugin,
   ) {
     super(app, plugin);
-    void detectDefaultBrowserId().then((browserId) => {
-      if (!browserId || browserId === this.defaultBrowserId) return;
-      this.defaultBrowserId = browserId;
-      this.update();
-    });
   }
 
   getSettingDefinitions(): SettingDefinitionItem[] {
@@ -75,18 +69,14 @@ export class ReadingListSettingTab extends PluginSettingTab {
     const browserOptions = Object.fromEntries(
       detectedBrowsers
         .filter((candidate) => candidate.installed || candidate.profiles.length > 0)
-        .map((candidate) => [
-          candidate.id,
-          `${candidate.name}${candidate.id === this.defaultBrowserId ? ' (system default)' : ''}`,
-        ]),
+        .map((candidate) => [candidate.id, candidate.name]),
     ) as Record<string, string>;
     if (!browserOptions[browser]) browserOptions[browser] = BROWSER_NAMES[browser];
     const selectedBrowser = detectedBrowsers.find((candidate) => candidate.id === browser);
     const profiles = selectedBrowser?.profiles ?? [];
     const selectedProfile =
       profiles.find((profile) => profile.id === settings.profiles[browser]) ??
-      profiles.find((profile) => profile.isDefault && profile.bookmarkPaths.length > 0) ??
-      profiles.find((profile) => profile.isDefault) ??
+      profiles.find((profile) => profile.bookmarkPaths.length > 0) ??
       profiles[0];
     const items: SettingGroupItem[] = [];
 
@@ -103,10 +93,7 @@ export class ReadingListSettingTab extends PluginSettingTab {
               settings.bookmarksFolder = defaultBookmarksFolder(settings.browser);
               const nextBrowser = detectedBrowsers.find((candidate) => candidate.id === value);
               const nextProfile =
-                nextBrowser?.profiles.find(
-                  (profile) => profile.isDefault && profile.bookmarkPaths.length > 0,
-                ) ??
-                nextBrowser?.profiles.find((profile) => profile.isDefault) ??
+                nextBrowser?.profiles.find((profile) => profile.bookmarkPaths.length > 0) ??
                 nextBrowser?.profiles[0];
               settings.profiles[settings.browser] = nextProfile?.id ?? '';
               await this.plugin.saveSettings();
@@ -123,10 +110,7 @@ export class ReadingListSettingTab extends PluginSettingTab {
       render: (setting) => {
         if (!profiles.length) return;
         const profileOptions = Object.fromEntries(
-          profiles.map((profile) => [
-            profile.id,
-            `${profile.name}${profile.isDefault ? ' (default)' : ''}`,
-          ]),
+          profiles.map((profile) => [profile.id, profile.name]),
         );
         setting.addDropdown((dd) =>
           dd

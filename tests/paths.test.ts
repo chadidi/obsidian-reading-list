@@ -64,14 +64,12 @@ test('detectedProfileBookmarkPath resolves the chosen browser profile', () => {
           name: 'Default',
           path: '/profiles/Default',
           bookmarkPaths: ['/profiles/Default/Bookmarks'],
-          isDefault: true,
         },
         {
           id: 'Profile 1',
           name: 'Work',
           path: '/profiles/Profile 1',
           bookmarkPaths: ['/profiles/Profile 1/AccountBookmarks'],
-          isDefault: false,
         },
       ],
       'Profile 1',
@@ -86,7 +84,6 @@ test('detectedProfileBookmarkPath derives files for browsers without reported bo
     name: 'Default',
     path: '/profiles/Default',
     bookmarkPaths: [],
-    isDefault: true,
   };
   assert.equal(
     detectedProfileBookmarkPath('brave', [profile], ''),
