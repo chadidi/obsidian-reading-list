@@ -237,6 +237,20 @@ export class ReadingListSettingTab extends PluginSettingTab {
     const items = this.plugin.entries.length;
     return [
       {
+        name: '',
+        desc: createFragment((frag) => {
+          frag.appendText('To open pages inside Obsidian, enable the core ');
+          frag.createEl('strong', { text: 'Web viewer' });
+          frag.appendText(' plugin under ');
+          frag.createEl('strong', { text: 'Settings → core plugins' });
+          frag.appendText('. Without it, dashboard links open in your default browser.');
+        }),
+        searchable: false,
+        render: (setting) => {
+          setting.descEl.addClass('bb-warning');
+        },
+      },
+      {
         name: 'Reading list dashboard',
         desc:
           items > 0

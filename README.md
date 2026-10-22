@@ -24,7 +24,8 @@ Install directly from the [Obsidian community plugins](https://community.obsidia
 1. Open Obsidian **Settings** → **Community plugins**.
 2. Select **Browse** and search for **Reading List**.
 3. Select **Install**, then select **Enable**.
-4. Open **Settings** → **Reading List** to configure the plugin.
+4. Enable the core **Web Viewer** plugin under **Settings** → **Core plugins** to open pages inside Obsidian.
+5. Open **Settings** → **Reading List** to configure the plugin.
 
 ### Manual installation
 
@@ -61,7 +62,7 @@ The dashboard is a panel that opens in the left sidebar, next to the core Bookma
 - **Sort** orders by date added (newest or oldest first) or by title.
 - **Sync** re-imports the list from your browser without leaving the panel.
 
-Selecting an item's title opens the page as a new tab in the main workspace, using Obsidian's core Web Viewer. The open icon on the right sends the page to your default browser instead. If the core Web Viewer plugin is disabled, titles fall back to opening in your default browser.
+To open pages from an item's title in a new Obsidian tab, enable the core **Web Viewer** plugin under **Settings** → **Core plugins**. The open icon on the right sends the page to your default browser. If Web Viewer is disabled, titles also fall back to the default browser.
 
 ## Supported browsers
 
